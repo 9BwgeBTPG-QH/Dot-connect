@@ -175,13 +175,10 @@ def build_graph(df: pd.DataFrame, config: dict) -> nx.DiGraph:
 # Analysis
 # ---------------------------------------------------------------------------
 
-def analyze_graph(G: nx.DiGraph, config: dict) -> dict:
+def analyze_graph(G: nx.DiGraph, total_mails: int, config: dict) -> dict:
     """ネットワーク分析を実行."""
     thresholds = config.get("thresholds", {})
-    total_mails = sum(
-        data.get("to_weight", 0) for _, _, data in G.edges(data=True)
-    )
-    if total_mails == 0:
+    if total_mails <= 0:
         total_mails = 1
 
     # --- CC キーマン ---
@@ -408,7 +405,7 @@ def main():
         sys.exit(0)
 
     G = build_graph(df, config)
-    analysis = analyze_graph(G, config)
+    analysis = analyze_graph(G, len(df), config)
     graph_data = generate_vis_data(G, analysis, config)
     html_path = render_html(graph_data, args.output)
 
