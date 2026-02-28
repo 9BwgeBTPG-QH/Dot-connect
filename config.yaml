@@ -1,0 +1,34 @@
+# Outlook メールネットワーク可視化 - 設定ファイル
+
+# 社内ドメイン（ノードの色分けに使用）
+company_domains:
+  - example.co.jp
+  # - subsidiary.co.jp
+
+# 除外するメールアドレス（完全一致）
+exclude_addresses:
+  - noreply@example.co.jp
+  - mailer-daemon@example.co.jp
+
+# 除外パターン（正規表現）
+exclude_patterns:
+  - "^no-?reply@"
+  - "^mailer-daemon@"
+  - "^postmaster@"
+
+# エイリアス統合（canonical → aliases リスト）
+# 同一人物が複数アドレスを持つ場合に統合
+alias_map: {}
+  # taro.yamada@example.co.jp:
+  #   - yamada.taro@old-domain.co.jp
+  #   - t-yamada@example.co.jp
+
+# 分析閾値
+thresholds:
+  # CCキーマン判定: メール総数に対するCC出現割合
+  cc_key_person_threshold: 0.30
+  # 最小エッジ重み: これ未満のエッジは表示しない
+  min_edge_weight: 1
+  # ハブスコア: degree_centrality と betweenness_centrality の重み
+  hub_degree_weight: 0.5
+  hub_betweenness_weight: 0.5

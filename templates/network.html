@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>メールネットワーク可視化</title>
+<script src="https://unpkg.com/vis-network@9.1.6/standalone/umd/vis-network.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/wordcloud2.js/1.1.2/wordcloud2.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  /* --- Toolbar --- */
+  #toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: #16213e;
+    border-bottom: 1px solid #0f3460;
+    height: 44px;
+    z-index: 100;
+  }
+  #toolbar .left { display: flex; align-items: center; gap: 12px; }
+  #toolbar .right { display: flex; align-items: center; gap: 16px; font-size: 13px; color: #8899aa; }
+
+  #breadcrumb {
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  #breadcrumb .bc-link {
+    color: #6366f1;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  #breadcrumb .bc-link:hover { text-decoration: underline; }
+  #breadcrumb .sep { color: #555; margin: 0 2px; }
+  #breadcrumb .current { color: #e0e0e0; font-weight: 600; }
+
+  .view-btn {
+    padding: 4px 12px;
+    border: 1px solid #334;
+    border-radius: 4px;
+    background: transparent;
+    color: #aaa;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.15s;
+  }
+  .view-btn:hover { border-color: #6366f1; color: #e0e0e0; }
+  .view-btn.active { background: #6366f1; color: #fff; border-color: #6366f1; }
+
+  /* --- Main layout --- */
+  #main {
+    display: flex;
+    height: calc(100vh - 44px);
+    position: relative;
+  }
+
+  #network-container {
+    flex: 1;
+    position: relative;
+  }
+
+  #wordcloud-container {
+    flex: 1;
+    display: none;
+    position: relative;
+  }
+  #wordcloud-canvas {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* --- Side panel --- */
+  #side-panel {
+    width: 320px;
+    background: #16213e;
+    border-left: 1px solid #0f3460;
+    overflow-y: auto;
+    display: none;
+    flex-shrink: 0;
+  }
+  #side-panel.open { display: block; }
+
+  .panel-header {
+    padding: 16px;
+    border-bottom: 1px solid #0f3460;
+  }
+  .panel-name {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    word-break: break-all;
+  }
+  .panel-email-row {
+    font-size: 13px;
+    color: #8899aa;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .copy-btn {
+    padding: 2px 8px;
+    border: 1px solid #334;
+    border-radius: 3px;
+    background: transparent;
+    color: #6366f1;
+    cursor: pointer;
+    font-size: 11px;
+  }
+  .copy-btn:hover { background: #6366f1; color: #fff; }
+
+  .panel-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid #0f3460;
+  }
+  .stat-box {
+    text-align: center;
+    padding: 8px;
+    background: #1a1a2e;
+    border-radius: 6px;
+  }
+  .stat-value { font-size: 20px; font-weight: 700; }
+  .stat-label { font-size: 11px; color: #8899aa; margin-top: 2px; }
+
+  .panel-badges {
+    padding: 8px 16px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .badge {
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-cc { background: #f59e0b33; color: #f59e0b; }
+  .badge-hub { background: #6366f133; color: #6366f1; }
+
+  .panel-section {
+    border-top: 1px solid #0f3460;
+  }
+  .section-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 13px;
+    font-weight: 600;
+    color: #aab;
+  }
+  .section-toggle:hover { background: #1a1a3e; }
+  .section-toggle .arrow { transition: transform 0.2s; }
+  .section-toggle.open .arrow { transform: rotate(90deg); }
+
+  .section-list {
+    display: none;
+    padding: 0 16px 8px;
+  }
+  .section-list.open { display: block; }
+  .section-item {
+    padding: 4px 0;
+    font-size: 13px;
+    cursor: pointer;
+    color: #ccd;
+    display: flex;
+    justify-content: space-between;
+  }
+  .section-item:hover { color: #6366f1; }
+  .section-item .count { color: #667; font-size: 12px; }
+
+  /* --- Legend --- */
+  #legend {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    background: #16213eee;
+    border: 1px solid #0f3460;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12px;
+    max-height: 260px;
+    overflow-y: auto;
+    z-index: 50;
+  }
+  #legend h4 { margin-bottom: 6px; color: #aab; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 0;
+    cursor: pointer;
+  }
+  .legend-item:hover { opacity: 0.8; }
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* --- Scrollbar --- */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #334; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- Toolbar -->
+<div id="toolbar">
+  <div class="left">
+    <div id="breadcrumb">
+      <span class="current">All</span>
+    </div>
+    <button class="view-btn active" id="btn-network">Network</button>
+    <button class="view-btn" id="btn-wordcloud">Word Cloud</button>
+  </div>
+  <div class="right">
+    <span id="stat-nodes"></span>
+    <span id="stat-edges"></span>
+    <span id="stat-communities"></span>
+  </div>
+</div>
+
+<!-- Main -->
+<div id="main">
+  <div id="network-container"></div>
+  <div id="wordcloud-container">
+    <canvas id="wordcloud-canvas"></canvas>
+  </div>
+  <div id="side-panel"></div>
+</div>
+
+<!-- Legend -->
+<div id="legend"></div>
+
+<script>
+// ===========================================================================
+// Data injection from Jinja2
+// ===========================================================================
+const DATA = {{ graph_data }};
+
+// ===========================================================================
+// State
+// ===========================================================================
+let network = null;
+let allNodes = new vis.DataSet();
+let allEdges = new vis.DataSet();
+let focusedNode = null;
+let clusteredCommunities = new Set();
+let currentView = 'network';
+
+// Quick lookup map
+const nodeMap = {};
+DATA.nodes.forEach(function(n) { nodeMap[n.id] = n; });
+
+// ===========================================================================
+// DOM helpers — safe construction without innerHTML
+// ===========================================================================
+function el(tag, attrs, children) {
+  const e = document.createElement(tag);
+  if (attrs) {
+    Object.keys(attrs).forEach(function(k) {
+      if (k === 'textContent') { e.textContent = attrs[k]; }
+      else if (k === 'className') { e.className = attrs[k]; }
+      else if (k.startsWith('on')) { e.addEventListener(k.slice(2), attrs[k]); }
+      else { e.setAttribute(k, attrs[k]); }
+    });
+  }
+  if (children) {
+    (Array.isArray(children) ? children : [children]).forEach(function(c) {
+      if (typeof c === 'string') e.appendChild(document.createTextNode(c));
+      else if (c) e.appendChild(c);
+    });
+  }
+  return e;
+}
+
+// ===========================================================================
+// Initialize
+// ===========================================================================
+document.getElementById('btn-network').addEventListener('click', function() { switchView('network'); });
+document.getElementById('btn-wordcloud').addEventListener('click', function() { switchView('wordcloud'); });
+
+window.addEventListener('DOMContentLoaded', init);
+
+function init() {
+  // Stats
+  document.getElementById('stat-nodes').textContent = DATA.analysis.total_nodes + ' nodes';
+  document.getElementById('stat-edges').textContent = DATA.analysis.total_edges + ' edges';
+  document.getElementById('stat-communities').textContent = DATA.communities.length + ' communities';
+
+  // Build vis datasets
+  var visNodes = DATA.nodes.map(function(n) {
+    return {
+      id: n.id,
+      label: n.label,
+      color: {
+        background: n.color,
+        border: n.is_cc_key ? '#f59e0b' : (n.is_hub ? '#fff' : n.color),
+        highlight: { background: '#fff', border: n.color },
+      },
+      size: n.size,
+      font: { color: '#ddd', size: 11, face: 'sans-serif' },
+      borderWidth: n.is_cc_key || n.is_hub ? 3 : 1,
+      shape: 'dot',
+    };
+  });
+
+  var visEdges = DATA.edges.map(function(e, i) {
+    return {
+      id: 'e' + i,
+      from: e.from,
+      to: e.to,
+      width: e.width,
+      color: { color: '#ffffff18', highlight: '#6366f1', hover: '#6366f188' },
+      arrows: { to: { enabled: true, scaleFactor: 0.4 } },
+      smooth: { type: 'continuous' },
+    };
+  });
+
+  allNodes.add(visNodes);
+  allEdges.add(visEdges);
+
+  // Create network
+  var container = document.getElementById('network-container');
+  network = new vis.Network(container, { nodes: allNodes, edges: allEdges }, {
+    physics: {
+      solver: 'barnesHut',
+      barnesHut: {
+        gravitationalConstant: -3000,
+        centralGravity: 0.1,
+        springLength: 120,
+        springConstant: 0.02,
+        damping: 0.3,
+      },
+      stabilization: { iterations: 200 },
+    },
+    interaction: {
+      hover: true,
+      tooltipDelay: 200,
+      zoomView: true,
+      dragView: true,
+    },
+    layout: { improvedLayout: true },
+  });
+
+  // Events
+  network.on('click', onNodeClick);
+  network.on('doubleClick', onDoubleClick);
+  network.on('afterDrawing', drawConvexHulls);
+
+  // Legend
+  renderLegend();
+}
+
+// ===========================================================================
+// Node click → zoom into connections
+// ===========================================================================
+function onNodeClick(params) {
+  if (params.nodes.length === 0) {
+    if (focusedNode) resetView();
+    return;
+  }
+
+  var nodeId = params.nodes[0];
+  if (network.isCluster(nodeId)) return;
+  focusNode(nodeId);
+}
+
+function focusNode(nodeId) {
+  var node = nodeMap[nodeId];
+  if (!node) return;
+  focusedNode = nodeId;
+
+  // Find connected nodes
+  var connectedEdges = DATA.edges.filter(function(e) {
+    return e.from === nodeId || e.to === nodeId;
+  });
+  var connectedNodeIds = new Set([nodeId]);
+  connectedEdges.forEach(function(e) {
+    connectedNodeIds.add(e.from);
+    connectedNodeIds.add(e.to);
+  });
+
+  // Filter vis datasets
+  var filteredNodes = DATA.nodes
+    .filter(function(n) { return connectedNodeIds.has(n.id); })
+    .map(function(n) {
+      return {
+        id: n.id,
+        label: n.label,
+        color: {
+          background: n.id === nodeId ? '#fff' : n.color,
+          border: n.id === nodeId ? n.color : (n.is_cc_key ? '#f59e0b' : n.color),
+          highlight: { background: '#fff', border: n.color },
+        },
+        size: n.id === nodeId ? n.size * 1.5 : n.size,
+        font: { color: '#ddd', size: n.id === nodeId ? 14 : 11, face: 'sans-serif' },
+        borderWidth: n.id === nodeId ? 4 : (n.is_cc_key || n.is_hub ? 3 : 1),
+        shape: 'dot',
+      };
+    });
+
+  var filteredEdges = connectedEdges.map(function(e, i) {
+    return {
+      id: 'fe' + i,
+      from: e.from,
+      to: e.to,
+      width: e.width,
+      color: { color: '#ffffff30', highlight: '#6366f1', hover: '#6366f188' },
+      arrows: { to: { enabled: true, scaleFactor: 0.4 } },
+      smooth: { type: 'continuous' },
+    };
+  });
+
+  allNodes.clear();
+  allEdges.clear();
+  allNodes.add(filteredNodes);
+  allEdges.add(filteredEdges);
+
+  network.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
+
+  updateBreadcrumb(node.name);
+  showSidePanel(nodeId);
+}
+
+function resetView() {
+  focusedNode = null;
+
+  var visNodes = DATA.nodes.map(function(n) {
+    return {
+      id: n.id,
+      label: n.label,
+      color: {
+        background: n.color,
+        border: n.is_cc_key ? '#f59e0b' : (n.is_hub ? '#fff' : n.color),
+        highlight: { background: '#fff', border: n.color },
+      },
+      size: n.size,
+      font: { color: '#ddd', size: 11, face: 'sans-serif' },
+      borderWidth: n.is_cc_key || n.is_hub ? 3 : 1,
+      shape: 'dot',
+    };
+  });
+
+  var visEdges = DATA.edges.map(function(e, i) {
+    return {
+      id: 'e' + i,
+      from: e.from,
+      to: e.to,
+      width: e.width,
+      color: { color: '#ffffff18', highlight: '#6366f1', hover: '#6366f188' },
+      arrows: { to: { enabled: true, scaleFactor: 0.4 } },
+      smooth: { type: 'continuous' },
+    };
+  });
+
+  allNodes.clear();
+  allEdges.clear();
+  allNodes.add(visNodes);
+  allEdges.add(visEdges);
+
+  network.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
+
+  updateBreadcrumb(null);
+  document.getElementById('side-panel').classList.remove('open');
+}
+
+// ===========================================================================
+// Breadcrumb (safe DOM construction)
+// ===========================================================================
+function updateBreadcrumb(name) {
+  var bc = document.getElementById('breadcrumb');
+  while (bc.firstChild) bc.removeChild(bc.firstChild);
+
+  if (!name) {
+    bc.appendChild(el('span', { className: 'current', textContent: 'All' }));
+  } else {
+    bc.appendChild(el('a', { className: 'bc-link', textContent: '◀ All', onclick: resetView }));
+    bc.appendChild(el('span', { className: 'sep', textContent: ' > ' }));
+    bc.appendChild(el('span', { className: 'current', textContent: name }));
+  }
+}
+
+// ===========================================================================
+// Side panel (safe DOM construction)
+// ===========================================================================
+function showSidePanel(nodeId) {
+  var node = nodeMap[nodeId];
+  if (!node) return;
+  var panel = document.getElementById('side-panel');
+  while (panel.firstChild) panel.removeChild(panel.firstChild);
+
+  // Header
+  var header = el('div', { className: 'panel-header' }, [
+    el('div', { className: 'panel-name', textContent: node.name }),
+    buildEmailRow(node.email),
+  ]);
+  panel.appendChild(header);
+
+  // Badges
+  if (node.is_cc_key || node.is_hub) {
+    var badgesDiv = el('div', { className: 'panel-badges' });
+    if (node.is_cc_key) badgesDiv.appendChild(el('span', { className: 'badge badge-cc', textContent: 'CC Key Person' }));
+    if (node.is_hub) badgesDiv.appendChild(el('span', { className: 'badge badge-hub', textContent: 'Hub' }));
+    panel.appendChild(badgesDiv);
+  }
+
+  // Stats
+  var stats = el('div', { className: 'panel-stats' }, [
+    buildStatBox(node.sent, '送信'),
+    buildStatBox(node.received, '受信'),
+    buildStatBox(node.cc_count, 'CC'),
+  ]);
+  panel.appendChild(stats);
+
+  // Connection lists
+  var toEdges = DATA.edges.filter(function(e) { return e.from === nodeId && e.to_weight > 0; });
+  var ccEdges = DATA.edges.filter(function(e) { return e.from === nodeId && e.cc_weight > 0; });
+  var fromEdges = DATA.edges.filter(function(e) { return e.to === nodeId; });
+
+  var toList = toEdges.map(function(e) { return { email: e.to, name: (nodeMap[e.to] || {}).name || e.to, count: e.to_weight }; })
+    .sort(function(a, b) { return b.count - a.count; });
+  var ccList = ccEdges.map(function(e) { return { email: e.to, name: (nodeMap[e.to] || {}).name || e.to, count: e.cc_weight }; })
+    .sort(function(a, b) { return b.count - a.count; });
+  var fromList = fromEdges.map(function(e) { return { email: e.from, name: (nodeMap[e.from] || {}).name || e.from, count: e.to_weight + e.cc_weight }; })
+    .sort(function(a, b) { return b.count - a.count; });
+
+  if (toList.length > 0) panel.appendChild(buildSection('To先', toList));
+  if (ccList.length > 0) panel.appendChild(buildSection('CC先', ccList));
+  if (fromList.length > 0) panel.appendChild(buildSection('受信元', fromList));
+
+  panel.classList.add('open');
+}
+
+function buildEmailRow(email) {
+  var row = el('div', { className: 'panel-email-row' });
+  row.appendChild(el('span', { textContent: email }));
+  var btn = el('button', {
+    className: 'copy-btn',
+    textContent: 'Copy',
+    onclick: function() {
+      navigator.clipboard.writeText(email).then(function() {
+        btn.textContent = 'Copied!';
+        setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+      });
+    }
+  });
+  row.appendChild(btn);
+  return row;
+}
+
+function buildStatBox(value, label) {
+  return el('div', { className: 'stat-box' }, [
+    el('div', { className: 'stat-value', textContent: String(value) }),
+    el('div', { className: 'stat-label', textContent: label }),
+  ]);
+}
+
+function buildSection(title, items) {
+  var section = el('div', { className: 'panel-section' });
+
+  var toggle = el('div', { className: 'section-toggle' }, [
+    el('span', { textContent: '▶ ' + title + ' (' + items.length + ')' }),
+    el('span', { className: 'arrow', textContent: '▶' }),
+  ]);
+  var list = el('div', { className: 'section-list' });
+
+  toggle.addEventListener('click', function() {
+    toggle.classList.toggle('open');
+    list.classList.toggle('open');
+  });
+
+  items.forEach(function(item) {
+    var row = el('div', { className: 'section-item' }, [
+      el('span', { textContent: item.name }),
+      el('span', { className: 'count', textContent: String(item.count) }),
+    ]);
+    row.addEventListener('click', function() { focusNode(item.email); });
+    list.appendChild(row);
+  });
+
+  section.appendChild(toggle);
+  section.appendChild(list);
+  return section;
+}
+
+// ===========================================================================
+// Convex hull drawing (cluster boundaries)
+// ===========================================================================
+function drawConvexHulls(ctx) {
+  if (focusedNode) return;
+
+  var positions = network.getPositions();
+  if (!positions || Object.keys(positions).length === 0) return;
+
+  DATA.communities.forEach(function(comm) {
+    if (comm.size < 3) return;
+    if (clusteredCommunities.has(comm.id)) return;
+
+    var points = [];
+    comm.members.forEach(function(m) {
+      var pos = positions[m.email];
+      if (pos) points.push([pos.x, pos.y]);
+    });
+
+    if (points.length < 3) return;
+
+    var hull = grahamScan(points);
+    if (hull.length < 3) return;
+
+    // Offset hull outward from centroid
+    var cx = hull.reduce(function(s, p) { return s + p[0]; }, 0) / hull.length;
+    var cy = hull.reduce(function(s, p) { return s + p[1]; }, 0) / hull.length;
+    var padding = 40;
+
+    ctx.beginPath();
+    hull.forEach(function(p, i) {
+      var dx = p[0] - cx;
+      var dy = p[1] - cy;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      var ox = p[0] + (dist > 0 ? dx / dist * padding : 0);
+      var oy = p[1] + (dist > 0 ? dy / dist * padding : 0);
+      if (i === 0) ctx.moveTo(ox, oy);
+      else ctx.lineTo(ox, oy);
+    });
+    ctx.closePath();
+
+    // ~0.08 fill opacity, ~0.15 stroke opacity
+    ctx.fillStyle = comm.color + '14';
+    ctx.fill();
+    ctx.strokeStyle = comm.color + '26';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+}
+
+// Graham scan convex hull
+function grahamScan(points) {
+  if (points.length < 3) return points.slice();
+
+  var lowest = 0;
+  for (var i = 1; i < points.length; i++) {
+    if (points[i][1] < points[lowest][1] ||
+        (points[i][1] === points[lowest][1] && points[i][0] < points[lowest][0])) {
+      lowest = i;
+    }
+  }
+  var tmp = points[0]; points[0] = points[lowest]; points[lowest] = tmp;
+  var pivot = points[0];
+
+  var sorted = points.slice(1).sort(function(a, b) {
+    var angleA = Math.atan2(a[1] - pivot[1], a[0] - pivot[0]);
+    var angleB = Math.atan2(b[1] - pivot[1], b[0] - pivot[0]);
+    return angleA - angleB;
+  });
+
+  var stack = [pivot, sorted[0]];
+  for (var i = 1; i < sorted.length; i++) {
+    while (stack.length > 1 && crossProduct(stack[stack.length - 2], stack[stack.length - 1], sorted[i]) <= 0) {
+      stack.pop();
+    }
+    stack.push(sorted[i]);
+  }
+  return stack;
+}
+
+function crossProduct(o, a, b) {
+  return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+}
+
+// ===========================================================================
+// Double-click → cluster/uncluster community
+// ===========================================================================
+function onDoubleClick(params) {
+  if (params.nodes.length === 0) return;
+  var nodeId = params.nodes[0];
+
+  // If it's a cluster, open it
+  if (network.isCluster(nodeId)) {
+    network.openCluster(nodeId);
+    var commId = parseInt(nodeId.replace('cluster_', ''), 10);
+    clusteredCommunities.delete(commId);
+    return;
+  }
+
+  // Find the community of this node
+  var node = nodeMap[nodeId];
+  if (!node) return;
+  var commId = node.community;
+  var comm = DATA.communities[commId];
+  if (!comm || comm.size < 2) return;
+
+  // Cluster the community
+  var memberEmails = new Set(comm.members.map(function(m) { return m.email; }));
+  network.cluster({
+    joinCondition: function(nodeOptions) { return memberEmails.has(nodeOptions.id); },
+    clusterNodeProperties: {
+      id: 'cluster_' + commId,
+      label: 'Cluster ' + commId + ' (' + comm.size + ')',
+      color: { background: comm.color, border: comm.color },
+      size: 30,
+      shape: 'dot',
+      font: { color: '#ddd', size: 13 },
+      borderWidth: 2,
+    },
+  });
+
+  clusteredCommunities.add(commId);
+}
+
+// ===========================================================================
+// View switching (Network / Word Cloud)
+// ===========================================================================
+function switchView(view) {
+  currentView = view;
+  var nc = document.getElementById('network-container');
+  var wc = document.getElementById('wordcloud-container');
+  var btnN = document.getElementById('btn-network');
+  var btnW = document.getElementById('btn-wordcloud');
+  var legend = document.getElementById('legend');
+
+  if (view === 'network') {
+    nc.style.display = 'block';
+    wc.style.display = 'none';
+    btnN.classList.add('active');
+    btnW.classList.remove('active');
+    legend.style.display = 'block';
+    if (network) network.redraw();
+  } else {
+    nc.style.display = 'none';
+    wc.style.display = 'block';
+    btnN.classList.remove('active');
+    btnW.classList.add('active');
+    legend.style.display = 'none';
+    renderWordCloud();
+  }
+}
+
+// ===========================================================================
+// Word Cloud
+// ===========================================================================
+function renderWordCloud() {
+  var canvas = document.getElementById('wordcloud-canvas');
+  var container = document.getElementById('wordcloud-container');
+  canvas.width = container.clientWidth;
+  canvas.height = container.clientHeight;
+
+  if (DATA.wordcloud_data.length === 0) return;
+
+  var maxSize = Math.max.apply(null, DATA.wordcloud_data.map(function(d) { return d.size; }));
+  var minFontSize = 12;
+  var maxFontSize = Math.min(80, canvas.height / 4);
+
+  var list = DATA.wordcloud_data.map(function(d) {
+    var fontSize = minFontSize + (d.size / maxSize) * (maxFontSize - minFontSize);
+    return [d.text, fontSize];
+  });
+
+  var colorMap = {};
+  DATA.wordcloud_data.forEach(function(d) { colorMap[d.text] = d.color; });
+
+  WordCloud(canvas, {
+    list: list,
+    gridSize: 8,
+    weightFactor: 1,
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    color: function(word) { return colorMap[word] || '#6366f1'; },
+    backgroundColor: '#1a1a2e',
+    rotateRatio: 0.1,
+    click: function(item) {
+      var entry = DATA.wordcloud_data.find(function(d) { return d.text === item[0]; });
+      if (entry) {
+        switchView('network');
+        setTimeout(function() { focusNode(entry.email); }, 300);
+      }
+    },
+  });
+}
+
+// ===========================================================================
+// Legend (safe DOM construction)
+// ===========================================================================
+function renderLegend() {
+  var container = document.getElementById('legend');
+  while (container.firstChild) container.removeChild(container.firstChild);
+
+  container.appendChild(el('h4', { textContent: 'Communities' }));
+
+  DATA.communities.forEach(function(comm) {
+    var names = comm.members.slice(0, 3).map(function(m) { return m.name; }).join(', ');
+    if (comm.size > 3) names += ' +' + (comm.size - 3);
+
+    var item = el('div', { className: 'legend-item' }, [
+      el('div', { className: 'legend-dot', style: 'background:' + comm.color }),
+      el('span', { textContent: names }),
+    ]);
+    item.addEventListener('click', function() { highlightCommunity(comm.id); });
+    container.appendChild(item);
+  });
+
+  // CC key persons
+  if (DATA.analysis.cc_key_persons.length > 0) {
+    var h4 = el('h4', { textContent: 'CC Key Persons', style: 'margin-top:10px' });
+    container.appendChild(h4);
+
+    DATA.analysis.cc_key_persons.forEach(function(p) {
+      var item = el('div', { className: 'legend-item' }, [
+        el('div', { className: 'legend-dot', style: 'background:#f59e0b' }),
+        el('span', { textContent: p.name + ' (' + p.cc_count + ')' }),
+      ]);
+      item.addEventListener('click', function() { focusNode(p.email); });
+      container.appendChild(item);
+    });
+  }
+}
+
+function highlightCommunity(commId) {
+  var comm = DATA.communities[commId];
+  if (!comm) return;
+  var memberIds = comm.members.map(function(m) { return m.email; });
+  network.selectNodes(memberIds);
+  network.fit({ nodes: memberIds, animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
+}
+</script>
+</body>
+</html>
