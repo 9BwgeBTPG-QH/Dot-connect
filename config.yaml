@@ -3,7 +3,6 @@
 # 社内ドメイン（ノードの色分けに使用）
 company_domains:
   - example.co.jp
-  # - subsidiary.co.jp
 
 # 除外するメールアドレス（完全一致）
 exclude_addresses:

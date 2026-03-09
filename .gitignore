@@ -2,3 +2,6 @@ output/
 __pycache__/
 *.pyc
 .env
+python/
+server.log
+test_outlook.py

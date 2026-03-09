@@ -226,6 +226,7 @@
 <!-- Toolbar -->
 <div id="toolbar">
   <div class="left">
+    <a href="/" style="color:#6366f1;text-decoration:none;font-size:13px;margin-right:8px;">← 新しい分析</a>
     <div id="breadcrumb">
       <span class="current">All</span>
     </div>
@@ -255,7 +256,7 @@
 // ===========================================================================
 // Data injection from Jinja2
 // ===========================================================================
-const DATA = {{ graph_data }};
+const DATA = {{ graph_data | safe }};
 
 // ===========================================================================
 // State
