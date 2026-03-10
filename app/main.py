@@ -3,11 +3,13 @@
 import json
 import logging
 import sys
+import uuid
+from collections import OrderedDict
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from app.core import (
@@ -37,6 +39,10 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 app = FastAPI(title="Dot-connect", description="メールネットワーク可視化")
+
+# --- In-memory result store (UUID → rendered HTML, max 50 entries) ---
+MAX_RESULTS = 50
+_results_store: OrderedDict[str, str] = OrderedDict()
 
 
 @app.middleware("http")
@@ -236,3 +242,176 @@ async def analyze(
             url=f"/?error=分析中にエラーが発生しました: {e}",
             status_code=303,
         )
+
+
+# ---------------------------------------------------------------------------
+# API: ローカル抽出ツール連携
+# ---------------------------------------------------------------------------
+
+@app.post("/api/upload-csv")
+async def api_upload_csv(
+    request: Request,
+    file: UploadFile = File(...),
+    company_domains: str = Form(""),
+    cc_key_person_threshold: float = Form(0.30),
+    min_edge_weight: int = Form(1),
+    hub_degree_weight: float = Form(0.5),
+    hub_betweenness_weight: float = Form(0.5),
+):
+    """ローカル抽出ツールからの CSV アップロード → 分析 → 結果URL返却."""
+    try:
+        df = load_csv(file.file)
+        if df.empty:
+            return JSONResponse({"error": "CSVファイルが空です"}, status_code=400)
+
+        config = _build_config(
+            company_domains, cc_key_person_threshold,
+            min_edge_weight, hub_degree_weight, hub_betweenness_weight,
+        )
+
+        G = build_graph(df, config)
+        analysis = analyze_graph(G, len(df), config)
+        graph_data = generate_vis_data(G, analysis, config)
+
+        log.info(
+            "API分析完了: ノード=%d, エッジ=%d",
+            graph_data["analysis"]["total_nodes"],
+            graph_data["analysis"]["total_edges"],
+        )
+
+        # Render HTML to string and store
+        graph_json = json.dumps(graph_data, ensure_ascii=False)
+        html = templates.get_template("network.html").render(
+            graph_data=graph_json,
+        )
+
+        result_id = str(uuid.uuid4())
+        _results_store[result_id] = html
+        # Evict oldest if over limit
+        while len(_results_store) > MAX_RESULTS:
+            _results_store.popitem(last=False)
+
+        return JSONResponse({"result_url": f"/results/{result_id}"})
+
+    except Exception as e:
+        log.exception("API upload-csv エラー")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.get("/results/{result_id}", response_class=HTMLResponse)
+def get_result(result_id: str):
+    """保存済み分析結果を表示."""
+    html = _results_store.get(result_id)
+    if html is None:
+        return HTMLResponse(
+            content="<h1>結果が見つかりません</h1><p>結果の有効期限が切れたか、URLが無効です。</p>",
+            status_code=404,
+        )
+    return HTMLResponse(content=html)
+
+
+@app.get("/api/extract-script")
+def serve_extract_script():
+    """extract_and_upload.py をダウンロード提供."""
+    script_path = Path(__file__).resolve().parent.parent / "extract_and_upload.py"
+    return FileResponse(
+        script_path,
+        media_type="text/plain; charset=utf-8",
+        filename="extract_and_upload.py",
+    )
+
+
+@app.get("/download-extractor")
+def download_extractor(
+    request: Request,
+    start_date: str = "",
+    end_date: str = "",
+    company_domains: str = "",
+    cc_key_person_threshold: float = 0.30,
+    min_edge_weight: int = 1,
+    hub_degree_weight: float = 0.5,
+    hub_betweenness_weight: float = 0.5,
+):
+    """パラメータ埋め込み済みの .bat ファイルを生成してダウンロード."""
+    host = request.headers.get("host", "localhost:8000")
+    server_url = f"http://{host}"
+
+    # config.yaml から共有パスを取得
+    cfg = load_config()
+    share_path = cfg.get("network_share_path", "")
+
+    bat_content = f'''@echo off
+setlocal enabledelayedexpansion
+
+echo ========================================
+echo   Dot-connect - Email Extractor
+echo   Period: {start_date} ~ {end_date}
+echo   Server: {server_url}
+echo ========================================
+echo.
+
+set "SERVER_URL={server_url}"
+set "TEMP_SCRIPT=%TEMP%\\extract_and_upload.py"
+
+REM --- Find Python ---
+set "PYTHON_CMD="
+
+REM 1) Check network share embedded Python
+if exist "{share_path}\\python\\python.exe" (
+    set "PYTHON_CMD={share_path}\\python\\python.exe"
+    echo [OK] Python found: network share
+    goto :download_script
+)
+
+REM 2) Check python in PATH
+where python >nul 2>&1
+if %errorlevel%==0 (
+    set "PYTHON_CMD=python"
+    echo [OK] Python found: PATH
+    goto :download_script
+)
+
+echo [ERROR] Python not found.
+echo.
+echo   Please do one of the following:
+echo   1. Install Python and add to PATH
+echo   2. Check network share path: {share_path}
+echo.
+pause
+exit /b 1
+
+:download_script
+echo [1/3] Downloading script...
+powershell -Command "Invoke-WebRequest -Uri '%SERVER_URL%/api/extract-script' -OutFile '%TEMP_SCRIPT%'" 2>nul
+if not exist "%TEMP_SCRIPT%" (
+    echo [ERROR] Failed to download script.
+    echo   Check connection to %SERVER_URL%
+    pause
+    exit /b 1
+)
+
+echo [2/3] Connecting to Outlook...
+echo   Select mail folders when prompted.
+echo.
+
+"%PYTHON_CMD%" "%TEMP_SCRIPT%" ^
+    --server_url "%SERVER_URL%" ^
+    --start_date "{start_date}" ^
+    --end_date "{end_date}" ^
+    --company_domains "{company_domains}" ^
+    --cc_key_person_threshold {cc_key_person_threshold} ^
+    --min_edge_weight {min_edge_weight} ^
+    --hub_degree_weight {hub_degree_weight} ^
+    --hub_betweenness_weight {hub_betweenness_weight}
+
+echo.
+echo [3/3] Done.
+del "%TEMP_SCRIPT%" >nul 2>&1
+pause
+'''
+
+    return Response(
+        content=bat_content.encode("ascii", errors="replace"),
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": "attachment; filename=extract_emails.bat"},
+    )

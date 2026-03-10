@@ -12,7 +12,8 @@ if not exist "%PYTHON_DIR%\python.exe" (
 
 echo ========================================
 echo   Dot-connect
-echo   http://localhost:8000
+echo   Local:   http://localhost:8000
+echo   Network: http://%COMPUTERNAME%:8000
 echo   Log file: server.log
 echo   Close this window to stop the server.
 echo ========================================
@@ -20,4 +21,4 @@ echo.
 
 start "" cmd /c "timeout /t 2 /nobreak >nul && start http://localhost:8000"
 
-"%PYTHON_DIR%\python.exe" -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+"%PYTHON_DIR%\python.exe" -m uvicorn app.main:app --host 0.0.0.0 --port 8000

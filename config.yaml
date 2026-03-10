@@ -1,5 +1,9 @@
 # Outlook メールネットワーク可視化 - 設定ファイル
 
+# ネットワーク共有パス（ローカル抽出ツール用）
+# 例: \\SERVER\share\Dot-connect
+network_share_path: "\\\\SERVER\\Dot-connect"
+
 # 社内ドメイン（ノードの色分けに使用）
 company_domains:
   - example.co.jp
