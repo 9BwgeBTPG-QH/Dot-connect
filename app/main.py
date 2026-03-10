@@ -119,24 +119,40 @@ def _run_analysis(df, config, request):
 # Routes
 # ---------------------------------------------------------------------------
 
-@app.get("/", response_class=HTMLResponse)
-def upload_page(request: Request, error: str = ""):
-    """アップロード画面を表示（同期: Outlook COM でフォルダ取得）."""
-    _log("[GET /] Loading page...")
+# --- Outlook COM 結果キャッシュ（起動後1回だけ試行） ---
+_outlook_cache: dict = {"checked": False, "folders": [], "error": ""}
 
-    # Outlook フォルダ一覧を取得（失敗してもページは表示する）
+
+def _get_outlook_folders_cached() -> tuple[list, str]:
+    """Outlook COM を1回だけ試行し、結果をキャッシュ."""
+    if _outlook_cache["checked"]:
+        return _outlook_cache["folders"], _outlook_cache["error"]
+
     folders = []
-    outlook_error = ""
+    error = ""
     try:
         from app.extract import get_outlook_folders
         folders = get_outlook_folders()
-        _log(f"[GET /] Outlook folders: {len(folders)}")
+        _log(f"[Outlook] Connected: {len(folders)} folders")
     except ImportError:
-        outlook_error = "pywin32 がインストールされていません"
-        _log(f"[GET /] {outlook_error}")
+        error = "pywin32 がインストールされていません"
+        _log(f"[Outlook] {error}")
     except Exception as e:
-        outlook_error = str(e)
-        _log(f"[GET /] Outlook error: {e}")
+        error = str(e)
+        _log(f"[Outlook] Error: {e}")
+
+    _outlook_cache["checked"] = True
+    _outlook_cache["folders"] = folders
+    _outlook_cache["error"] = error
+    return folders, error
+
+
+@app.get("/", response_class=HTMLResponse)
+def upload_page(request: Request, error: str = ""):
+    """アップロード画面を表示."""
+    _log("[GET /] Loading page...")
+
+    folders, outlook_error = _get_outlook_folders_cached()
 
     response = templates.TemplateResponse("upload.html", {
         "request": request,

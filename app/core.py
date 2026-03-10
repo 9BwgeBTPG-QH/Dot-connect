@@ -49,8 +49,29 @@ def load_config(path: str = "config.yaml") -> dict:
                 "hub_betweenness_weight": 0.5,
             },
         }
-    with open(config_path, encoding="utf-8") as f:
-        return yaml.safe_load(f) or {}
+    # バイナリで読み込み、エンコーディングを自動判定
+    try:
+        raw = config_path.read_bytes()
+        # NULバイト除去（UTF-16 から変換された残骸対策）
+        raw = raw.replace(b"\x00", b"")
+        # BOM 除去
+        for bom in (b"\xef\xbb\xbf", b"\xff\xfe", b"\xfe\xff"):
+            if raw.startswith(bom):
+                raw = raw[len(bom):]
+                break
+        text = raw.decode("utf-8", errors="replace")
+        return yaml.safe_load(text) or {}
+    except Exception as e:
+        log.warning("config.yaml の読み込みに失敗しました (%s)。デフォルト設定を使用します。", e)
+        return {
+            "company_domains": [],
+            "thresholds": {
+                "cc_key_person_threshold": 0.30,
+                "min_edge_weight": 1,
+                "hub_degree_weight": 0.5,
+                "hub_betweenness_weight": 0.5,
+            },
+        }
 
 
 # ---------------------------------------------------------------------------

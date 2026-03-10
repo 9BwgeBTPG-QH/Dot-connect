@@ -42,8 +42,27 @@ def load_config(path: str = "config.yaml") -> dict:
                 "min_edge_weight": 1,
             },
         }
-    with open(config_path, encoding="utf-8") as f:
-        return yaml.safe_load(f) or {}
+    try:
+        raw = config_path.read_bytes()
+        raw = raw.replace(b"\x00", b"")
+        for bom in (b"\xef\xbb\xbf", b"\xff\xfe", b"\xfe\xff"):
+            if raw.startswith(bom):
+                raw = raw[len(bom):]
+                break
+        text = raw.decode("utf-8", errors="replace")
+        return yaml.safe_load(text) or {}
+    except Exception as e:
+        log.warning("config.yaml の読み込みに失敗しました (%s)。デフォルト設定を使用します。", e)
+        return {
+            "company_domains": [],
+            "exclude_addresses": [],
+            "exclude_patterns": [],
+            "alias_map": {},
+            "thresholds": {
+                "cc_key_person_threshold": 0.30,
+                "min_edge_weight": 1,
+            },
+        }
 
 
 # ---------------------------------------------------------------------------
