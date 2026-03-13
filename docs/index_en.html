@@ -1,12 +1,13 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>メールネットワーク可視化</title>
+<title>Dot-connect Demo — Email Network Visualization</title>
 <script src="https://unpkg.com/vis-network@9.1.6/standalone/umd/vis-network.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/wordcloud2.js/1.1.2/wordcloud2.min.js"></script>
 <style>
+
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   body {
@@ -220,6 +221,7 @@
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: #334; border-radius: 3px; }
+
 </style>
 </head>
 <body>
@@ -227,7 +229,9 @@
 <!-- Toolbar -->
 <div id="toolbar">
   <div class="left">
-    <a href="/" style="color:#6366f1;text-decoration:none;font-size:13px;margin-right:8px;">← 新しい分析</a>
+    <div style="font-size:13px;color:#8899aa;margin-right:8px;">
+      <span style="color:#6366f1;font-weight:600;">Dot-connect</span> / Sample Data (30 emails)
+    </div>
     <div id="breadcrumb">
       <span class="current">All</span>
     </div>
@@ -238,9 +242,6 @@
     <span id="stat-nodes"></span>
     <span id="stat-edges"></span>
     <span id="stat-communities"></span>
-    <button class="view-btn" id="btn-export-png">PNG</button>
-    <button class="view-btn" id="btn-export-html">HTML</button>
-    <button class="view-btn" id="btn-export-csv">CSV</button>
   </div>
 </div>
 
@@ -257,10 +258,11 @@
 <div id="legend"></div>
 
 <script>
+var DATA = {"nodes": [{"id": "tanaka.ichiro@example.co.jp", "label": "Tanaka Ichiro", "name": "Tanaka Ichiro", "email": "tanaka.ichiro@example.co.jp", "domain": "example.co.jp", "is_internal": true, "sent": 8, "received": 14, "cc_count": 5, "community": 1, "color": "#f59e0b", "size": 21.5, "is_cc_key": false, "is_hub": true, "is_passive": false}, {"id": "yamada.hanako@example.co.jp", "label": "Yamada Hanako", "name": "Yamada Hanako", "email": "yamada.hanako@example.co.jp", "domain": "example.co.jp", "is_internal": true, "sent": 4, "received": 11, "cc_count": 5, "community": 1, "color": "#f59e0b", "size": 18.0, "is_cc_key": false, "is_hub": true, "is_passive": false}, {"id": "suzuki.taro@example.co.jp", "label": "Suzuki Taro", "name": "Suzuki Taro", "email": "suzuki.taro@example.co.jp", "domain": "example.co.jp", "is_internal": true, "sent": 4, "received": 8, "cc_count": 6, "community": 0, "color": "#6366f1", "size": 17.0, "is_cc_key": false, "is_hub": true, "is_passive": false}, {"id": "sato.yuki@example.co.jp", "label": "Sato Yuki", "name": "Sato Yuki", "email": "sato.yuki@example.co.jp", "domain": "example.co.jp", "is_internal": true, "sent": 2, "received": 0, "cc_count": 7, "community": 0, "color": "#6366f1", "size": 12.5, "is_cc_key": false, "is_hub": true, "is_passive": false}, {"id": "kobayashi.mai@example.co.jp", "label": "Kobayashi Mai", "name": "Kobayashi Mai", "email": "kobayashi.mai@example.co.jp", "domain": "example.co.jp", "is_internal": true, "sent": 3, "received": 5, "cc_count": 3, "community": 1, "color": "#f59e0b", "size": 13.5, "is_cc_key": false, "is_hub": true, "is_passive": false}, {"id": "watanabe.ken@example.co.jp", "label": "Watanabe Ken", "name": "Watanabe Ken", "email": "watanabe.ken@example.co.jp", "domain": "example.co.jp", "is_internal": true, "sent": 3, "received": 4, "cc_count": 3, "community": 0, "color": "#6366f1", "size": 13.0, "is_cc_key": false, "is_hub": true, "is_passive": false}, {"id": "takahashi.ryo@example.co.jp", "label": "Takahashi Ryo", "name": "Takahashi Ryo", "email": "takahashi.ryo@example.co.jp", "domain": "example.co.jp", "is_internal": true, "sent": 2, "received": 3, "cc_count": 5, "community": 1, "color": "#f59e0b", "size": 13.0, "is_cc_key": false, "is_hub": true, "is_passive": false}, {"id": "ito.megumi@example.co.jp", "label": "Ito Megumi", "name": "Ito Megumi", "email": "ito.megumi@example.co.jp", "domain": "example.co.jp", "is_internal": true, "sent": 2, "received": 3, "cc_count": 1, "community": 0, "color": "#6366f1", "size": 11.0, "is_cc_key": false, "is_hub": true, "is_passive": false}, {"id": "client.tanaka@partner.com", "label": "client.tanaka@…", "name": "client.tanaka@partner.com", "email": "client.tanaka@partner.com", "domain": "partner.com", "is_internal": false, "sent": 1, "received": 1, "cc_count": 0, "community": 1, "color": "#f59e0b", "size": 9.0, "is_cc_key": false, "is_hub": true, "is_passive": false}, {"id": "nakamura.aoi@external.com", "label": "Nakamura Aoi", "name": "Nakamura Aoi", "email": "nakamura.aoi@external.com", "domain": "external.com", "is_internal": false, "sent": 1, "received": 1, "cc_count": 0, "community": 1, "color": "#f59e0b", "size": 9.0, "is_cc_key": false, "is_hub": true, "is_passive": false}], "edges": [{"from": "tanaka.ichiro@example.co.jp", "to": "yamada.hanako@example.co.jp", "to_weight": 5, "cc_weight": 2, "weight": 7, "width": 2.1}, {"from": "tanaka.ichiro@example.co.jp", "to": "suzuki.taro@example.co.jp", "to_weight": 4, "cc_weight": 2, "weight": 6, "width": 1.7999999999999998}, {"from": "tanaka.ichiro@example.co.jp", "to": "sato.yuki@example.co.jp", "to_weight": 0, "cc_weight": 4, "weight": 4, "width": 1.2}, {"from": "tanaka.ichiro@example.co.jp", "to": "takahashi.ryo@example.co.jp", "to_weight": 1, "cc_weight": 4, "weight": 5, "width": 1.5}, {"from": "tanaka.ichiro@example.co.jp", "to": "kobayashi.mai@example.co.jp", "to_weight": 1, "cc_weight": 2, "weight": 3, "width": 1}, {"from": "tanaka.ichiro@example.co.jp", "to": "watanabe.ken@example.co.jp", "to_weight": 1, "cc_weight": 2, "weight": 3, "width": 1}, {"from": "tanaka.ichiro@example.co.jp", "to": "ito.megumi@example.co.jp", "to_weight": 0, "cc_weight": 1, "weight": 1, "width": 1}, {"from": "tanaka.ichiro@example.co.jp", "to": "client.tanaka@partner.com", "to_weight": 1, "cc_weight": 0, "weight": 1, "width": 1}, {"from": "tanaka.ichiro@example.co.jp", "to": "nakamura.aoi@external.com", "to_weight": 1, "cc_weight": 0, "weight": 1, "width": 1}, {"from": "yamada.hanako@example.co.jp", "to": "tanaka.ichiro@example.co.jp", "to_weight": 3, "cc_weight": 1, "weight": 4, "width": 1.2}, {"from": "yamada.hanako@example.co.jp", "to": "kobayashi.mai@example.co.jp", "to_weight": 2, "cc_weight": 0, "weight": 2, "width": 1}, {"from": "yamada.hanako@example.co.jp", "to": "takahashi.ryo@example.co.jp", "to_weight": 2, "cc_weight": 0, "weight": 2, "width": 1}, {"from": "yamada.hanako@example.co.jp", "to": "suzuki.taro@example.co.jp", "to_weight": 0, "cc_weight": 1, "weight": 1, "width": 1}, {"from": "yamada.hanako@example.co.jp", "to": "sato.yuki@example.co.jp", "to_weight": 0, "cc_weight": 1, "weight": 1, "width": 1}, {"from": "suzuki.taro@example.co.jp", "to": "tanaka.ichiro@example.co.jp", "to_weight": 3, "cc_weight": 1, "weight": 4, "width": 1.2}, {"from": "suzuki.taro@example.co.jp", "to": "yamada.hanako@example.co.jp", "to_weight": 0, "cc_weight": 1, "weight": 1, "width": 1}, {"from": "suzuki.taro@example.co.jp", "to": "ito.megumi@example.co.jp", "to_weight": 3, "cc_weight": 0, "weight": 3, "width": 1}, {"from": "suzuki.taro@example.co.jp", "to": "watanabe.ken@example.co.jp", "to_weight": 2, "cc_weight": 0, "weight": 2, "width": 1}, {"from": "suzuki.taro@example.co.jp", "to": "sato.yuki@example.co.jp", "to_weight": 0, "cc_weight": 1, "weight": 1, "width": 1}, {"from": "sato.yuki@example.co.jp", "to": "tanaka.ichiro@example.co.jp", "to_weight": 1, "cc_weight": 0, "weight": 1, "width": 1}, {"from": "sato.yuki@example.co.jp", "to": "suzuki.taro@example.co.jp", "to_weight": 0, "cc_weight": 1, "weight": 1, "width": 1}, {"from": "sato.yuki@example.co.jp", "to": "yamada.hanako@example.co.jp", "to_weight": 1, "cc_weight": 0, "weight": 1, "width": 1}, {"from": "kobayashi.mai@example.co.jp", "to": "yamada.hanako@example.co.jp", "to_weight": 3, "cc_weight": 0, "weight": 3, "width": 1}, {"from": "kobayashi.mai@example.co.jp", "to": "watanabe.ken@example.co.jp", "to_weight": 1, "cc_weight": 1, "weight": 2, "width": 1}, {"from": "kobayashi.mai@example.co.jp", "to": "tanaka.ichiro@example.co.jp", "to_weight": 1, "cc_weight": 1, "weight": 2, "width": 1}, {"from": "watanabe.ken@example.co.jp", "to": "kobayashi.mai@example.co.jp", "to_weight": 2, "cc_weight": 0, "weight": 2, "width": 1}, {"from": "watanabe.ken@example.co.jp", "to": "tanaka.ichiro@example.co.jp", "to_weight": 1, "cc_weight": 1, "weight": 2, "width": 1}, {"from": "watanabe.ken@example.co.jp", "to": "suzuki.taro@example.co.jp", "to_weight": 2, "cc_weight": 0, "weight": 2, "width": 1}, {"from": "watanabe.ken@example.co.jp", "to": "sato.yuki@example.co.jp", "to_weight": 0, "cc_weight": 1, "weight": 1, "width": 1}, {"from": "takahashi.ryo@example.co.jp", "to": "tanaka.ichiro@example.co.jp", "to_weight": 2, "cc_weight": 0, "weight": 2, "width": 1}, {"from": "takahashi.ryo@example.co.jp", "to": "yamada.hanako@example.co.jp", "to_weight": 1, "cc_weight": 1, "weight": 2, "width": 1}, {"from": "takahashi.ryo@example.co.jp", "to": "suzuki.taro@example.co.jp", "to_weight": 0, "cc_weight": 2, "weight": 2, "width": 1}, {"from": "takahashi.ryo@example.co.jp", "to": "kobayashi.mai@example.co.jp", "to_weight": 0, "cc_weight": 1, "weight": 1, "width": 1}, {"from": "ito.megumi@example.co.jp", "to": "suzuki.taro@example.co.jp", "to_weight": 2, "cc_weight": 0, "weight": 2, "width": 1}, {"from": "ito.megumi@example.co.jp", "to": "tanaka.ichiro@example.co.jp", "to_weight": 1, "cc_weight": 1, "weight": 2, "width": 1}, {"from": "client.tanaka@partner.com", "to": "tanaka.ichiro@example.co.jp", "to_weight": 1, "cc_weight": 0, "weight": 1, "width": 1}, {"from": "client.tanaka@partner.com", "to": "yamada.hanako@example.co.jp", "to_weight": 0, "cc_weight": 1, "weight": 1, "width": 1}, {"from": "client.tanaka@partner.com", "to": "takahashi.ryo@example.co.jp", "to_weight": 0, "cc_weight": 1, "weight": 1, "width": 1}, {"from": "nakamura.aoi@external.com", "to": "tanaka.ichiro@example.co.jp", "to_weight": 1, "cc_weight": 0, "weight": 1, "width": 1}, {"from": "nakamura.aoi@external.com", "to": "yamada.hanako@example.co.jp", "to_weight": 1, "cc_weight": 0, "weight": 1, "width": 1}], "communities": [{"id": 0, "color": "#6366f1", "size": 4, "members": [{"email": "ito.megumi@example.co.jp", "name": "Ito Megumi"}, {"email": "sato.yuki@example.co.jp", "name": "Sato Yuki"}, {"email": "suzuki.taro@example.co.jp", "name": "Suzuki Taro"}, {"email": "watanabe.ken@example.co.jp", "name": "Watanabe Ken"}]}, {"id": 1, "color": "#f59e0b", "size": 6, "members": [{"email": "client.tanaka@partner.com", "name": "client.tanaka@partner.com"}, {"email": "tanaka.ichiro@example.co.jp", "name": "Tanaka Ichiro"}, {"email": "nakamura.aoi@external.com", "name": "Nakamura Aoi"}, {"email": "takahashi.ryo@example.co.jp", "name": "Takahashi Ryo"}, {"email": "yamada.hanako@example.co.jp", "name": "Yamada Hanako"}, {"email": "kobayashi.mai@example.co.jp", "name": "Kobayashi Mai"}]}], "analysis": {"total_mails": 30, "total_nodes": 10, "total_edges": 40, "cc_key_persons": [], "hubs": [{"email": "tanaka.ichiro@example.co.jp", "name": "Tanaka Ichiro", "score": 0.669, "degree_centrality": 1.0, "betweenness_centrality": 0.338}, {"email": "yamada.hanako@example.co.jp", "name": "Yamada Hanako", "score": 0.4525, "degree_centrality": 0.7778, "betweenness_centrality": 0.1273}, {"email": "suzuki.taro@example.co.jp", "name": "Suzuki Taro", "score": 0.3738, "degree_centrality": 0.6667, "betweenness_centrality": 0.081}, {"email": "takahashi.ryo@example.co.jp", "name": "Takahashi Ryo", "score": 0.2905, "degree_centrality": 0.5556, "betweenness_centrality": 0.0255}, {"email": "kobayashi.mai@example.co.jp", "name": "Kobayashi Mai", "score": 0.2303, "degree_centrality": 0.4444, "betweenness_centrality": 0.0162}, {"email": "watanabe.ken@example.co.jp", "name": "Watanabe Ken", "score": 0.2303, "degree_centrality": 0.4444, "betweenness_centrality": 0.0162}, {"email": "sato.yuki@example.co.jp", "name": "Sato Yuki", "score": 0.2257, "degree_centrality": 0.4444, "betweenness_centrality": 0.0069}, {"email": "client.tanaka@partner.com", "name": "client.tanaka@partner.com", "score": 0.1667, "degree_centrality": 0.3333, "betweenness_centrality": 0.0}, {"email": "ito.megumi@example.co.jp", "name": "Ito Megumi", "score": 0.1111, "degree_centrality": 0.2222, "betweenness_centrality": 0.0}, {"email": "nakamura.aoi@external.com", "name": "Nakamura Aoi", "score": 0.1111, "degree_centrality": 0.2222, "betweenness_centrality": 0.0}], "passive_observers": []}, "wordcloud_data": [{"text": "Tanaka Ichiro", "size": 27, "email": "tanaka.ichiro@example.co.jp", "color": "#f59e0b"}, {"text": "Yamada Hanako", "size": 20, "email": "yamada.hanako@example.co.jp", "color": "#f59e0b"}, {"text": "Suzuki Taro", "size": 18, "email": "suzuki.taro@example.co.jp", "color": "#6366f1"}, {"text": "Kobayashi Mai", "size": 11, "email": "kobayashi.mai@example.co.jp", "color": "#f59e0b"}, {"text": "Watanabe Ken", "size": 10, "email": "watanabe.ken@example.co.jp", "color": "#6366f1"}, {"text": "Takahashi Ryo", "size": 10, "email": "takahashi.ryo@example.co.jp", "color": "#f59e0b"}, {"text": "Sato Yuki", "size": 9, "email": "sato.yuki@example.co.jp", "color": "#6366f1"}, {"text": "Ito Megumi", "size": 6, "email": "ito.megumi@example.co.jp", "color": "#6366f1"}, {"text": "client.tanaka@partner.com", "size": 2, "email": "client.tanaka@partner.com", "color": "#f59e0b"}, {"text": "Nakamura Aoi", "size": 2, "email": "nakamura.aoi@external.com", "color": "#f59e0b"}]};
+
 // ===========================================================================
 // Data injection from Jinja2
 // ===========================================================================
-const DATA = {{ graph_data | safe }};
 
 // ===========================================================================
 // State
@@ -303,9 +305,6 @@ function el(tag, attrs, children) {
 // ===========================================================================
 document.getElementById('btn-network').addEventListener('click', function() { switchView('network'); });
 document.getElementById('btn-wordcloud').addEventListener('click', function() { switchView('wordcloud'); });
-document.getElementById('btn-export-png').addEventListener('click', exportPNG);
-document.getElementById('btn-export-html').addEventListener('click', exportHTML);
-document.getElementById('btn-export-csv').addEventListener('click', exportCSV);
 
 window.addEventListener('DOMContentLoaded', init);
 
@@ -541,8 +540,8 @@ function showSidePanel(nodeId) {
 
   // Stats
   var stats = el('div', { className: 'panel-stats' }, [
-    buildStatBox(node.sent, '送信'),
-    buildStatBox(node.received, '受信'),
+    buildStatBox(node.sent, 'Sent'),
+    buildStatBox(node.received, 'Received'),
     buildStatBox(node.cc_count, 'CC'),
   ]);
   panel.appendChild(stats);
@@ -559,9 +558,9 @@ function showSidePanel(nodeId) {
   var fromList = fromEdges.map(function(e) { return { email: e.from, name: (nodeMap[e.from] || {}).name || e.from, count: e.to_weight + e.cc_weight }; })
     .sort(function(a, b) { return b.count - a.count; });
 
-  if (toList.length > 0) panel.appendChild(buildSection('To先', toList));
-  if (ccList.length > 0) panel.appendChild(buildSection('CC先', ccList));
-  if (fromList.length > 0) panel.appendChild(buildSection('受信元', fromList));
+  if (toList.length > 0) panel.appendChild(buildSection('To Recipients', toList));
+  if (ccList.length > 0) panel.appendChild(buildSection('CC Recipients', ccList));
+  if (fromList.length > 0) panel.appendChild(buildSection('Received From', fromList));
 
   panel.classList.add('open');
 }
@@ -872,109 +871,11 @@ function highlightCommunity(commId) {
 }
 
 // ===========================================================================
-// Export: PNG
 // ===========================================================================
-function exportPNG() {
-  if (!network) return;
-  var canvas = network.canvas.frame.canvas;
-  var link = document.createElement('a');
-  var dateStr = new Date().toISOString().split('T')[0];
-  link.download = 'dot-connect_network_' + dateStr + '.png';
-  link.href = canvas.toDataURL('image/png');
-  link.click();
-}
-
 // ===========================================================================
-// Export: Standalone HTML
 // ===========================================================================
-function exportHTML() {
-  if (!DATA) return;
-  var dateStr = new Date().toISOString().split('T')[0];
-  var fileName = 'dot-connect_network_' + dateStr + '.html';
-
-  var css = document.querySelector('style') ? document.querySelector('style').textContent : '';
-
-  // Collect all function bodies from current script
-  var scriptFns = [
-    el, buildVisNode, init, onNodeClick, focusNode, resetView,
-    updateBreadcrumb, showSidePanel, buildEmailRow, buildStatBox, buildSection,
-    drawConvexHulls, grahamScan, crossProduct, onDoubleClick,
-    switchView, renderWordCloud, renderLegend, highlightCommunity
-  ];
-  var scriptBody = scriptFns.map(function(fn) { return fn.toString(); }).join('\n');
-
-  var html = '<!DOCTYPE html>\n<html lang="ja">\n<head>\n'
-    + '<meta charset="UTF-8">\n'
-    + '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
-    + '<title>Dot-connect Network (' + dateStr + ')</title>\n'
-    + '<script src="https://unpkg.com/vis-network@9.1.6/standalone/umd/vis-network.min.js"><\/script>\n'
-    + '<script src="https://cdnjs.cloudflare.com/ajax/libs/wordcloud2.js/1.1.2/wordcloud2.min.js"><\/script>\n'
-    + '<style>\n' + css + '\n</style>\n'
-    + '</head>\n<body>\n'
-    + '<div id="toolbar"><div class="left">'
-    + '<div id="breadcrumb"><span class="current">All</span></div>'
-    + '<button class="view-btn active" id="btn-network">Network</button>'
-    + '<button class="view-btn" id="btn-wordcloud">Word Cloud</button>'
-    + '</div><div class="right">'
-    + '<span id="stat-nodes"></span><span id="stat-edges"></span><span id="stat-communities"></span>'
-    + '</div></div>\n'
-    + '<div id="main"><div id="network-container"></div>'
-    + '<div id="wordcloud-container"><canvas id="wordcloud-canvas"></canvas></div>'
-    + '<div id="side-panel"></div></div>\n'
-    + '<div id="legend"></div>\n'
-    + '<script>\n'
-    + 'var DATA = ' + JSON.stringify(DATA) + ';\n'
-    + 'var network=null,allNodes=new vis.DataSet(),allEdges=new vis.DataSet(),'
-    + 'focusedNode=null,clusteredCommunities=new Set(),currentView="network",nodeMap={};\n'
-    + 'DATA.nodes.forEach(function(n){nodeMap[n.id]=n});\n'
-    + scriptBody + '\n'
-    + 'document.getElementById("btn-network").addEventListener("click",function(){switchView("network")});\n'
-    + 'document.getElementById("btn-wordcloud").addEventListener("click",function(){switchView("wordcloud")});\n'
-    + 'window.addEventListener("DOMContentLoaded",init);\n'
-    + '<\/script>\n</body>\n</html>';
-
-  var blob = new Blob([html], { type: 'text/html; charset=utf-8' });
-  var link = document.createElement('a');
-  link.download = fileName;
-  link.href = URL.createObjectURL(blob);
-  link.click();
-  URL.revokeObjectURL(link.href);
-}
-
 // ===========================================================================
-// Export: CSV (analysis results)
 // ===========================================================================
-function exportCSV() {
-  if (!DATA) return;
-
-  var rows = [['email', 'name', 'domain', 'sent', 'received', 'cc_count', 'community', 'is_internal', 'is_cc_key', 'is_hub', 'is_passive']];
-  DATA.nodes.forEach(function(n) {
-    rows.push([
-      n.email, n.name, n.domain,
-      n.sent, n.received, n.cc_count,
-      n.community, n.is_internal, n.is_cc_key, n.is_hub, n.is_passive || false
-    ]);
-  });
-
-  var csvContent = rows.map(function(row) {
-    return row.map(function(cell) {
-      var s = String(cell == null ? '' : cell);
-      if (s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0) {
-        return '"' + s.replace(/"/g, '""') + '"';
-      }
-      return s;
-    }).join(',');
-  }).join('\n');
-
-  var bom = '\uFEFF';
-  var blob = new Blob([bom + csvContent], { type: 'text/csv; charset=utf-8' });
-  var link = document.createElement('a');
-  var dateStr = new Date().toISOString().split('T')[0];
-  link.download = 'dot-connect_analysis_' + dateStr + '.csv';
-  link.href = URL.createObjectURL(blob);
-  link.click();
-  URL.revokeObjectURL(link.href);
-}
 </script>
 </body>
 </html>

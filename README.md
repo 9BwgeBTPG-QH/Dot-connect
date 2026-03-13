@@ -1,183 +1,183 @@
-# Dot-connect — Outlook メールネットワーク可視化ツール
+# Dot-connect — Outlook Email Network Visualizer
 
-Outlookメールの送受信・CC関係をネットワークグラフで可視化し、**CCキーマン**や**ハブ人物**を自動特定するツール。組織内の暗黙的なコミュニケーション構造を「見える化」し、引き継ぎ資料やナレッジトランスファーに活用できる。
+Visualize Outlook email send/receive/CC relationships as an interactive network graph. Automatically detect **CC key persons**, **hub individuals**, and **passive observers** to reveal hidden communication structures within your organization.
 
-## 使い方（かんたん）
+> **[Live Demo (sample data)](https://9BwgeBTPG-QH.github.io/Dot-connect/index_en.html)** — Try the interactive visualization with fictional team data.
 
-**Python や CLI の知識は不要です。**
+> **[日本語版 README はこちら](README.ja.md)**
 
-### 初回セットアップ（1回だけ）
+## Features
 
-1. `setup.bat` をダブルクリック
-2. Python と必要なパッケージが自動でインストールされる（数分）
+- **Network Graph** — Obsidian-style dark theme, force-directed layout (vis.js barnesHut)
+- **Node Drill-down** — Click a node to zoom into its connections (Workflowy-style)
+- **Community Detection** — Louvain algorithm with convex hull boundaries
+- **CC Key Person** — Identifies people who appear in CC above a configurable threshold
+- **Hub Detection** — Weighted degree + betweenness centrality scoring
+- **Passive Observer** — Detects receive-only and CC-only participants
+- **Word Cloud** — Name-based word cloud sized by email frequency
+- **Export** — PNG screenshot, standalone HTML, CSV analysis results
+- **Zero-install for end users** — Embedded Python via network share (no local install needed)
 
-### 方法A: ローカルPCで起動（最もシンプル）
+## Quick Start
 
-1. `start.bat` をダブルクリック → ブラウザが自動で開く
-2. 「Outlook から抽出」タブで:
-   - メールフォルダを選択（チェックボックス、ページ読込時に自動取得）
-   - 期間を指定
-   - 「抽出 & 分析する」を押す
-3. ネットワーク可視化が表示される
+### Option A: Local PC (simplest)
 
-> 既に抽出済みの CSV がある場合は「CSV アップロード」タブからも分析可能。
+1. Double-click `setup.bat` (first time only — installs Python + dependencies)
+2. Double-click `start.bat` → browser opens automatically
+3. Select Outlook folders, set date range, click "Extract & Analyze"
 
-### 方法B: ファイルサーバーで起動（複数人で共有）
+### Option B: File Server (multi-user)
 
-ファイルサーバーで `start.bat` を実行し、各ユーザーはブラウザからアクセスする。
-**ユーザーのPCに Python のインストールは不要** — 共有フォルダの埋め込み Python が自動的に使用される。
+Run the server on a shared folder — users access via browser, no Python install required.
 
-**サーバー側（管理者が1回だけ）:**
+**Server setup (once):**
+1. Place Dot-connect on a network share (e.g., `\\SERVER\share\Dot-connect`)
+2. Run `setup.bat` → `start.bat`
+3. Set `network_share_path` in `config.yaml`
+4. Allow port 8000 in Windows Firewall
 
-1. 共有フォルダに Dot-connect を配置（例: `\\SERVER\share\Dot-connect`）
-2. `setup.bat` → `start.bat` を実行（サーバー上で常時起動）
-3. `config.yaml` の `network_share_path` を実際の共有パスに設定
-4. Windows Firewall でポート 8000 の受信を許可
+**Each user:**
+1. Open `http://<server>:8000` in browser
+2. Download the `.bat` extractor, run it locally
+3. Select Outlook folders → auto-extract & upload → results appear in browser
 
-```
-netsh advfirewall firewall add rule name="Dot-connect" dir=in action=allow protocol=TCP localport=8000
-```
+### Option C: CSV Upload
 
-**各ユーザー（毎回）:**
+Upload a previously extracted CSV file via the web UI.
 
-1. ブラウザで `http://<サーバー名>:8000` にアクセス
-2. 「Outlook から抽出」タブで期間を指定し「抽出ツールをダウンロード (.bat)」をクリック
-3. ダウンロードした `.bat` をダブルクリックで実行
-4. Outlook フォルダを選択 → 自動でメール抽出 & サーバーにアップロード
-5. ブラウザに分析結果が自動表示される
+### Option D: Docker
 
-```
-\\server\share\dot-connect\
-├── setup.bat                ← 初回セットアップ
-├── start.bat                ← サーバー起動
-├── extract_and_upload.py    ← ローカル抽出スクリプト（自動DL）
-├── config.yaml              ← network_share_path を設定
-├── python\                  ← 埋め込みPython（setup.batで生成、ユーザーPCから共有利用）
-└── ...
+```bash
+docker compose up
+# Open http://localhost:8000 and upload a CSV
 ```
 
-> `.bat` はサーバーからスクリプトをダウンロードし、共有フォルダの Python で実行する。ユーザーのPCに Python がなくても動作する。
-
----
-
-## パイプライン
-
-```
-方法A (ローカル):    start.bat → ブラウザで Outlook フォルダ選択 → 可視化
-方法B (サーバー):    ブラウザ → .bat DL → ローカル実行 → サーバーで分析 → 可視化
-方法C (CSV):        start.bat → ブラウザで CSV アップロード → 可視化
-方法D (CLI):        extract.py → CSV → generate.py → index.html
-```
-
-## ファイル構成
-
-```
-Dot-connect/
-├── setup.bat                # 初回セットアップ（Python自動DL）
-├── start.bat                # サーバー起動（ダブルクリック）
-├── extract_and_upload.py    # ローカル抽出 & サーバーアップロード
-├── app/
-│   ├── __init__.py          # パッケージ初期化
-│   ├── core.py              # 分析コアロジック（CLI/Web共通）
-│   ├── extract.py           # Outlook COM ラッパー（Web用）
-│   ├── main.py              # FastAPI アプリ
-│   └── models.py            # Pydantic バリデーションモデル
-├── templates/
-│   ├── upload.html          # Web UI: トップページ（抽出 / アップロード）
-│   └── network.html         # 可視化テンプレート（vis.js + wordcloud2.js）
-├── extract.py               # CLI: Outlook → CSV抽出
-├── generate.py              # CLI: CSV → HTML生成
-├── config.yaml              # 除外設定・エイリアス・閾値・共有パス
-├── requirements.txt         # 依存パッケージ
-├── requirements-extract.txt # CLI用 pywin32
-├── python/                  # 埋め込みPython（setup.batで自動生成）
-└── output/                  # 生成物（gitignore対象）
-```
-
-## 開発者向けセットアップ
-
-既に Python 環境がある場合は `setup.bat` を使わず直接インストールできる。
+## Developer Setup
 
 ```bash
 pip install -r requirements.txt
-pip install pywin32               # Windows でメール抽出する場合
-uvicorn app.main:app --reload     # 開発サーバー起動
+pip install pywin32               # Windows only (Outlook extraction)
+uvicorn app.main:app --reload     # Dev server
 ```
 
-### CLI での使い方
+### CLI Usage
 
 ```bash
-# メール抽出
+# Extract emails from Outlook
 python extract.py --start 2025-01-01 --end 2025-12-31
 
-# HTML 生成
+# Generate HTML visualization
 python generate.py --input output/emails_20250101.csv
-# → output/index.html をブラウザで開く
 ```
 
-## 可視化の機能
+### Sample Data
 
-### ネットワークビュー
-- **Obsidian Graph View 風ダークテーマ** (#1a1a2e)
-- **vis.js** barnesHut 物理エンジンによるフォースレイアウト
-- **ノードクリック → ズームイン**: その人の接続のみに絞り込み表示（Workflowy 式）
-- **パンくずナビ**: `◀ All > 山田太郎` で階層遷移
-- **情報パネル**: 氏名、メール（コピーボタン）、送受信/CC 数、展開リスト（To先/CC先/受信元）
-- **クラスタ境界**: Louvain コミュニティを convex hull で描画
-- **クラスタ折りたたみ**: ダブルクリックでコミュニティ単位の折りたたみ/展開
-- **凡例**: コミュニティ色・CCキーマン一覧
+A sample CSV with dummy data is included for testing:
 
-### ワードクラウドビュー
-- **wordcloud2.js** で人名表示（フォントサイズ = メール頻度）
-- コミュニティ色に対応
-- クリックでネットワークビューの該当ノードにジャンプ
+```bash
+# Via CLI
+python generate.py --input sample/emails_sample.csv
 
-## 分析機能
+# Or upload via web UI at http://localhost:8000
+```
 
-| 分析 | 説明 |
-|------|------|
-| **CC キーマン** | CC 出現率が閾値（デフォルト 30%）を超える人物 |
-| **ハブ** | degree centrality + betweenness centrality の加重スコア上位 |
-| **コミュニティ** | Louvain 法による自動クラスタ検出 |
+## Pipeline
 
-## config.yaml 設定
+```
+Option A (Local):     start.bat → Browser selects Outlook folders → Visualization
+Option B (Server):    Browser → .bat download → Local extract → Server analysis → Visualization
+Option C (CSV):       start.bat → Browser CSV upload → Visualization
+Option D (CLI):       extract.py → CSV → generate.py → index.html
+```
+
+## Analysis
+
+| Analysis | Description |
+|----------|-------------|
+| **CC Key Person** | People with CC appearance rate above threshold (default: 30%) |
+| **Hub** | Top nodes by weighted degree + betweenness centrality |
+| **Community** | Automatic cluster detection via Louvain algorithm |
+| **Passive Observer** | Receive-only or CC-only participants (never send) |
+
+## Configuration
+
+See [`config.yaml`](config.yaml) for all settings:
 
 ```yaml
-# ネットワーク共有パス（ファイルサーバー運用時に設定）
-network_share_path: "\\\\SERVER\\Dot-connect"
+network_share_path: "\\\\SERVER\\share\\Dot-connect"
 
-# 社内ドメイン（色分けに使用）
 company_domains:
   - example.co.jp
 
-# 除外（完全一致）
-exclude_addresses:
-  - noreply@example.co.jp
-
-# 除外（正規表現）
 exclude_patterns:
   - "^no-?reply@"
 
-# エイリアス統合（同一人物の複数アドレスを正規化）
 alias_map:
-  taro.yamada@example.co.jp:
-    - yamada.taro@old-domain.co.jp
+  canonical@example.co.jp:
+    - alias@old-domain.co.jp
 
-# 分析閾値
 thresholds:
-  cc_key_person_threshold: 0.30  # CC出現割合
-  min_edge_weight: 1             # 最小エッジ重み
-  hub_degree_weight: 0.5         # ハブスコア重み
+  cc_key_person_threshold: 0.30
+  min_edge_weight: 1
+  hub_degree_weight: 0.5
   hub_betweenness_weight: 0.5
 ```
 
-## 技術的な注意点
+## Project Structure
 
-| 課題 | 対策 |
-|------|------|
-| Exchange DN → SMTP 変換 | ExchangeUser → AddressEntry → PropertyAccessor → ダミー生成 の4段フォールバック |
-| 大規模グラフ (500+ ノード) | `min_edge_weight` フィルタ、小クラスタ自動折りたたみ |
-| CSV 内セミコロン衝突 | pandas `QUOTE_ALL` でフィールドを引用符囲い |
-| Outlook COM 制限 | M365 C2R 環境では COM が使えないため、ローカル抽出ツール方式で回避（方法B）。COM 結果はキャッシュされ、2回目以降のアクセスは即座に応答 |
-| CSV エンコーディング | utf-8-sig → cp932 → latin-1 の順で自動判定 |
-| config.yaml エンコーディング | BOM / NULバイト / UTF-16 残骸を自動除去して読み込み。どのエディタで保存しても動作 |
+```
+Dot-connect/
+├── app/
+│   ├── core.py              # Analysis engine (shared by CLI & Web)
+│   ├── extract.py           # Outlook COM wrapper
+│   ├── main.py              # FastAPI application
+│   └── models.py            # Pydantic validation models
+├── templates/
+│   ├── upload.html          # Web UI: upload & extract page
+│   └── network.html         # Visualization (vis.js + wordcloud2.js)
+├── sample/
+│   └── emails_sample.csv    # Sample data for testing
+├── extract.py               # CLI: Outlook → CSV extraction
+├── generate.py              # CLI: CSV → HTML generation
+├── extract_and_upload.py    # Self-contained local extractor + uploader
+├── config.yaml              # Configuration
+├── setup.bat                # One-click setup (downloads Python)
+├── start.bat                # One-click server start
+├── Dockerfile               # Docker support
+├── docker-compose.yml       # Docker Compose
+├── requirements.txt         # Python dependencies
+└── requirements-extract.txt # pywin32 for Outlook COM
+```
+
+## Privacy & Data Handling
+
+### Data Collected
+
+This tool extracts the following metadata from Outlook via COM automation:
+
+- Sender email address and display name
+- To/CC recipient email addresses and display names
+- Received date and subject line
+
+**Email body content is never collected or stored.**
+
+### Data Processing & Storage
+
+- All processing happens **entirely on your local machine** (or your own server). No data is sent to any external service
+- When using the file server mode (Option B), extracted CSV is uploaded only to your own internal server
+- Analysis results are held in memory and discarded when the server stops
+- Exported HTML files contain aggregated network data (names, email addresses, communication counts) — **be mindful of who you share them with**
+
+### Recommendations for Admins
+
+- Before deploying this tool, **inform employees** that their email communication patterns will be visualized
+- The tool reveals organizational communication structures — treat the output as confidential
+- Ensure usage complies with your organization's data policies and applicable privacy regulations (e.g., GDPR, APPI)
+
+## Related Projects
+
+- [slack-mention-map](https://github.com/9BwgeBTPG-QH/slack-mention-map) — Slack mention network visualization tool
+
+## License
+
+[MIT](LICENSE)

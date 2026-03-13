@@ -278,9 +278,33 @@ def analyze_graph(G: nx.DiGraph, total_mails: int, config: dict) -> dict:
             "members": members,
         })
 
+    # --- Passive Observers ---
+    passive_observers = []
+    for node, data in G.nodes(data=True):
+        sent = data.get("sent", 0)
+        received = data.get("received", 0)
+        cc_count = data.get("cc_count", 0)
+        if sent == 0 and cc_count > 0 and received == 0:
+            passive_observers.append({
+                "email": node,
+                "name": data.get("name", node),
+                "received": received,
+                "cc_count": cc_count,
+                "type": "cc_only",
+            })
+        elif sent == 0 and received > 0:
+            passive_observers.append({
+                "email": node,
+                "name": data.get("name", node),
+                "received": received,
+                "cc_count": cc_count,
+                "type": "receive_only",
+            })
+    passive_observers.sort(key=lambda x: x["received"] + x["cc_count"], reverse=True)
+
     log.info(
-        "分析完了: CCキーマン %d人, コミュニティ %d個",
-        len(cc_key_persons), len(communities),
+        "分析完了: CCキーマン %d人, コミュニティ %d個, パッシブ %d人",
+        len(cc_key_persons), len(communities), len(passive_observers),
     )
 
     return {
@@ -289,6 +313,7 @@ def analyze_graph(G: nx.DiGraph, total_mails: int, config: dict) -> dict:
         "hubs": hubs,
         "communities": community_info,
         "community_map": community_map,
+        "passive_observers": passive_observers,
     }
 
 
@@ -307,6 +332,7 @@ def generate_vis_data(G: nx.DiGraph, analysis: dict, config: dict) -> dict:
     nodes = []
     cc_key_emails = {p["email"] for p in analysis["cc_key_persons"]}
     hub_emails = {h["email"] for h in analysis["hubs"][:10]}
+    passive_emails = {p["email"] for p in analysis.get("passive_observers", [])}
 
     for node, data in G.nodes(data=True):
         comm_id = community_map.get(node, 0)
@@ -334,6 +360,7 @@ def generate_vis_data(G: nx.DiGraph, analysis: dict, config: dict) -> dict:
             "size": size,
             "is_cc_key": node in cc_key_emails,
             "is_hub": node in hub_emails,
+            "is_passive": node in passive_emails,
         }
         nodes.append(node_entry)
 
@@ -378,6 +405,7 @@ def generate_vis_data(G: nx.DiGraph, analysis: dict, config: dict) -> dict:
             "total_edges": len(edges),
             "cc_key_persons": analysis["cc_key_persons"],
             "hubs": analysis["hubs"],
+            "passive_observers": analysis.get("passive_observers", []),
         },
         "wordcloud_data": wordcloud_data,
     }

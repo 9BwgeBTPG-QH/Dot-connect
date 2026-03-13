@@ -1,0 +1,8 @@
+python/
+output/
+__pycache__/
+.env
+.git/
+.specstory/
+*.pyc
+server.log
