@@ -5,3 +5,11 @@ __pycache__/
 python/
 server.log
 test_outlook.py
+zenn-article-rewrite.md
+zenn-article.md
+
+# Internal/editor files
+.claude/
+.specstory/
+.cursorindexingignore
+CLAUDE.md
