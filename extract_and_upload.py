@@ -335,7 +335,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Outlook メール抽出 & Dot-connect サーバーアップロード"
     )
-    parser.add_argument("--server_url", required=True, help="サーバーURL (例: http://SERVER:8000)")
+    parser.add_argument("--server_url", required=True, help="サーバーURL (例: http://yourserver:8000)")
     parser.add_argument("--start_date", required=True, help="開始日 (YYYY-MM-DD)")
     parser.add_argument("--end_date", required=True, help="終了日 (YYYY-MM-DD)")
     parser.add_argument("--company_domains", default="", help="社内ドメイン (カンマ区切り)")

@@ -2,7 +2,7 @@
 
 # ネットワーク共有パス（ローカル抽出ツール用）
 # 例: \\SERVER\share\Dot-connect
-network_share_path: "\\\\SERVER\\Users\\Administrator\\dot-connect"
+network_share_path: "\\\\SERVER\\share\\Dot-connect"
 
 # 社内ドメイン（ノードの色分けに使用）
 company_domains:
