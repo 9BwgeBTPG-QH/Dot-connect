@@ -29,8 +29,8 @@ alias_map: {}
 # Microsoft Graph API settings (optional)
 # See docs/GRAPH_API_SETUP.md for setup instructions
 graph_api:
-  client_id: "8ff7ae71-b322-4259-b513-750f94ee447f"
-  tenant_id: "a06a140f-f48a-4c15-b557-2f9f70be1d4e"
+  client_id: ""
+  tenant_id: ""
   redirect_uri: "http://localhost:8000/auth/callback"
 
 # 分析閾値

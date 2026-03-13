@@ -2,10 +2,14 @@
 
 import json
 import logging
+import shutil
 import sys
 import uuid
 from collections import OrderedDict
 from pathlib import Path
+from typing import Optional
+
+import yaml
 
 from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
@@ -38,11 +42,55 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
+# --- Auto-create config.yaml from template if missing ---
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_CONFIG_PATH = _PROJECT_ROOT / "config.yaml"
+_CONFIG_EXAMPLE = _PROJECT_ROOT / "config.yaml.example"
+if not _CONFIG_PATH.exists() and _CONFIG_EXAMPLE.exists():
+    shutil.copy2(_CONFIG_EXAMPLE, _CONFIG_PATH)
+    _log("[Config] config.yaml を config.yaml.example からコピーしました")
+
 app = FastAPI(title="Dot-connect", description="メールネットワーク可視化")
 
 # --- In-memory result store (UUID → rendered HTML, max 50 entries) ---
 MAX_RESULTS = 50
 _results_store: OrderedDict[str, str] = OrderedDict()
+
+# --- Graph API auth (lazy-initialized) ---
+_graph_auth_instance: Optional["GraphAuth"] = None  # noqa: F821
+_graph_auth_checked = False
+
+
+def _get_graph_auth():
+    """config.yaml の graph_api セクションから GraphAuth を遅延初期化."""
+    global _graph_auth_instance, _graph_auth_checked
+    if _graph_auth_checked:
+        return _graph_auth_instance
+
+    _graph_auth_checked = True
+    cfg = load_config()
+    graph_cfg = cfg.get("graph_api", {})
+    client_id = (graph_cfg.get("client_id") or "").strip()
+    tenant_id = (graph_cfg.get("tenant_id") or "").strip()
+
+    if not client_id or not tenant_id:
+        _graph_auth_instance = None
+        return None
+
+    try:
+        from app.graph_auth import GraphAuth
+        redirect_uri = (graph_cfg.get("redirect_uri") or "http://localhost:8000/auth/callback").strip()
+        _graph_auth_instance = GraphAuth(
+            client_id=client_id,
+            tenant_id=tenant_id,
+            redirect_uri=redirect_uri,
+        )
+        _log(f"[Graph API] Initialized: client_id={client_id[:8]}...")
+    except Exception as e:
+        _log(f"[Graph API] Init failed: {e}")
+        _graph_auth_instance = None
+
+    return _graph_auth_instance
 
 
 @app.middleware("http")
@@ -154,11 +202,18 @@ def upload_page(request: Request, error: str = ""):
 
     folders, outlook_error = _get_outlook_folders_cached()
 
+    # Graph API availability
+    graph_auth = _get_graph_auth()
+    graph_available = graph_auth is not None
+    graph_authenticated = graph_auth.is_authenticated() if graph_available else False
+
     response = templates.TemplateResponse("upload.html", {
         "request": request,
         "error": error,
         "folders": folders,
         "outlook_error": outlook_error,
+        "graph_available": graph_available,
+        "graph_authenticated": graph_authenticated,
         **_default_template_vars(),
     })
     response.headers["Cache-Control"] = "no-store"
@@ -218,6 +273,125 @@ def extract_and_analyze(
     except Exception as e:
         import traceback
         _log("=== extract-and-analyze ERROR ===")
+        _log(traceback.format_exc())
+        return RedirectResponse(
+            url=f"/?error=エラー: {e}",
+            status_code=303,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Graph API Routes
+# ---------------------------------------------------------------------------
+
+@app.get("/auth/login")
+def auth_login(request: Request):
+    """Microsoft ログインページへリダイレクト."""
+    graph_auth = _get_graph_auth()
+    if graph_auth is None:
+        return RedirectResponse(url="/?error=Graph API が設定されていません", status_code=303)
+
+    state = str(uuid.uuid4())
+    auth_url = graph_auth.get_auth_url(state)
+    _log(f"[Graph API] Login redirect: state={state[:8]}...")
+    return RedirectResponse(url=auth_url)
+
+
+@app.get("/auth/callback")
+def auth_callback(request: Request):
+    """OAuth2 コールバック処理."""
+    graph_auth = _get_graph_auth()
+    if graph_auth is None:
+        return RedirectResponse(url="/?error=Graph API が設定されていません", status_code=303)
+
+    # クエリパラメータを dict に変換
+    auth_response = dict(request.query_params)
+    result = graph_auth.acquire_token_by_auth_code(auth_response)
+
+    if "error" in result:
+        error_desc = result.get("error_description", result.get("error", "認証に失敗しました"))
+        _log(f"[Graph API] Auth callback error: {error_desc}")
+        return RedirectResponse(url=f"/?error=認証エラー: {error_desc}", status_code=303)
+
+    _log("[Graph API] Authentication successful")
+    return RedirectResponse(url="/")
+
+
+@app.get("/auth/logout")
+def auth_logout():
+    """トークンクリア."""
+    graph_auth = _get_graph_auth()
+    if graph_auth is not None:
+        graph_auth.sign_out()
+        _log("[Graph API] Signed out")
+    return RedirectResponse(url="/")
+
+
+@app.get("/api/graph-folders")
+def get_graph_folders_api():
+    """Graph API でフォルダ一覧取得."""
+    graph_auth = _get_graph_auth()
+    if graph_auth is None:
+        return JSONResponse(content={"error": "Graph API が設定されていません"}, status_code=501)
+
+    access_token = graph_auth.get_access_token()
+    if access_token is None:
+        return JSONResponse(content={"error": "認証が必要です"}, status_code=401)
+
+    try:
+        from app.graph_extract import get_graph_folders
+        folders = get_graph_folders(access_token)
+        return JSONResponse(content={"folders": folders})
+    except Exception as e:
+        log.exception("Graph API フォルダ取得エラー")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@app.post("/graph-extract-and-analyze", response_class=HTMLResponse)
+def graph_extract_and_analyze(
+    request: Request,
+    folder_ids: list[str] = Form(...),
+    start_date: str = Form(...),
+    end_date: str = Form(...),
+    company_domains: str = Form(""),
+    cc_key_person_threshold: float = Form(0.30),
+    min_edge_weight: int = Form(1),
+    hub_degree_weight: float = Form(0.5),
+    hub_betweenness_weight: float = Form(0.5),
+):
+    """Graph API 抽出 → 分析 → 可視化."""
+    _log("=== graph-extract-and-analyze START ===")
+    _log(f"folder_ids={folder_ids}, start={start_date}, end={end_date}")
+    try:
+        graph_auth = _get_graph_auth()
+        if graph_auth is None:
+            return RedirectResponse(url="/?error=Graph API が設定されていません", status_code=303)
+
+        access_token = graph_auth.get_access_token()
+        if access_token is None:
+            return RedirectResponse(url="/?error=再認証が必要です。サインインしてください。", status_code=303)
+
+        config = _build_config(
+            company_domains, cc_key_person_threshold,
+            min_edge_weight, hub_degree_weight, hub_betweenness_weight,
+        )
+
+        # extract.py の config も必要（exclude_addresses, alias_map 等）
+        from extract import load_config as extract_load_config
+        extract_config = extract_load_config()
+
+        from app.graph_extract import run_graph_extraction
+        df = run_graph_extraction(access_token, folder_ids, start_date, end_date, extract_config)
+        _log(f"Graph extraction done: {len(df)} rows")
+
+        if df.empty:
+            return RedirectResponse(url="/?error=抽出されたメールがありません", status_code=303)
+
+        return _run_analysis(df, config, request)
+
+    except Exception as e:
+        import traceback
+        _log("=== graph-extract-and-analyze ERROR ===")
         _log(traceback.format_exc())
         return RedirectResponse(
             url=f"/?error=エラー: {e}",
@@ -431,3 +605,66 @@ pause
         media_type="application/octet-stream",
         headers={"Content-Disposition": "attachment; filename=extract_emails.bat"},
     )
+
+
+# ---------------------------------------------------------------------------
+# Settings
+# ---------------------------------------------------------------------------
+
+@app.get("/settings", response_class=HTMLResponse)
+def settings_page(request: Request, saved: str = ""):
+    """設定画面を表示."""
+    cfg = load_config()
+    graph_cfg = cfg.get("graph_api", {})
+    return templates.TemplateResponse("settings.html", {
+        "request": request,
+        "saved": saved,
+        "client_id": graph_cfg.get("client_id") or "",
+        "tenant_id": graph_cfg.get("tenant_id") or "",
+        "redirect_uri": graph_cfg.get("redirect_uri") or "http://localhost:8000/auth/callback",
+    })
+
+
+@app.post("/settings", response_class=HTMLResponse)
+def save_settings(
+    request: Request,
+    client_id: str = Form(""),
+    tenant_id: str = Form(""),
+    redirect_uri: str = Form("http://localhost:8000/auth/callback"),
+):
+    """設定を config.yaml に保存."""
+    global _graph_auth_instance, _graph_auth_checked
+
+    try:
+        # config.yaml を読み込み
+        cfg = load_config()
+
+        # graph_api セクションを更新
+        cfg["graph_api"] = {
+            "client_id": client_id.strip(),
+            "tenant_id": tenant_id.strip(),
+            "redirect_uri": redirect_uri.strip(),
+        }
+
+        # config.yaml に書き戻し
+        with open(_CONFIG_PATH, "w", encoding="utf-8") as f:
+            yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+        _log(f"[Settings] config.yaml updated: client_id={client_id[:8]}..." if client_id else "[Settings] config.yaml updated: Graph API cleared")
+
+        # Graph API 認証を再初期化
+        _graph_auth_instance = None
+        _graph_auth_checked = False
+
+        return RedirectResponse(url="/settings?saved=1", status_code=303)
+
+    except Exception as e:
+        _log(f"[Settings] Error saving config: {e}")
+        return templates.TemplateResponse("settings.html", {
+            "request": request,
+            "saved": "",
+            "error": f"設定の保存に失敗しました: {e}",
+            "client_id": client_id,
+            "tenant_id": tenant_id,
+            "redirect_uri": redirect_uri,
+        })

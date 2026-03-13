@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dot-connect - 設定</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 40px 16px;
+  }
+  .container { width: 100%; max-width: 600px; }
+  h1 { font-size: 24px; font-weight: 700; margin-bottom: 6px; color: #fff; }
+  .subtitle { font-size: 14px; color: #8899aa; margin-bottom: 28px; }
+  a { color: #6366f1; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .back-link { font-size: 14px; margin-bottom: 20px; display: inline-block; }
+  .card {
+    background: #16213e; border: 1px solid #0f3460; border-radius: 10px;
+    padding: 20px; margin-bottom: 20px;
+  }
+  .section-title { font-size: 13px; color: #8899aa; font-weight: 600; margin-bottom: 10px; }
+  .form-group { margin-bottom: 14px; }
+  .form-group:last-child { margin-bottom: 0; }
+  .form-label { display: block; font-size: 13px; color: #aab; margin-bottom: 5px; font-weight: 600; }
+  .form-hint { font-size: 11px; color: #667; margin-top: 3px; }
+  input[type="text"] {
+    width: 100%; padding: 8px 12px; border: 1px solid #334; border-radius: 6px;
+    background: #1a1a2e; color: #e0e0e0; font-size: 14px; outline: none;
+    font-family: monospace;
+  }
+  input:focus { border-color: #6366f1; }
+  .submit-btn {
+    width: 100%; padding: 14px; border: none; border-radius: 8px;
+    background: #6366f1; color: #fff; font-size: 16px; font-weight: 600; cursor: pointer;
+  }
+  .submit-btn:hover { background: #5558e6; }
+  .success-msg {
+    background: #10b98122; border: 1px solid #10b981; border-radius: 8px;
+    padding: 12px 16px; margin-bottom: 20px; font-size: 14px; color: #6ee7b7;
+  }
+  .error-msg {
+    background: #ef444422; border: 1px solid #ef4444; border-radius: 8px;
+    padding: 12px 16px; margin-bottom: 20px; font-size: 14px; color: #fca5a5;
+  }
+  .info-box {
+    background: #1e3a5f; border: 1px solid #2563eb44; border-radius: 8px;
+    padding: 14px 16px; margin-bottom: 20px; font-size: 13px; color: #93c5fd; line-height: 1.6;
+  }
+  .info-box a { color: #93c5fd; text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="container">
+  <a href="/" class="back-link">&larr; トップに戻る</a>
+  <h1>設定</h1>
+  <p class="subtitle">Microsoft Graph API の接続設定</p>
+
+  {% if saved %}
+  <div class="success-msg">設定を保存しました。トップページに戻ると反映されます。</div>
+  {% endif %}
+
+  {% if error %}
+  <div class="error-msg">{{ error }}</div>
+  {% endif %}
+
+  <div class="info-box">
+    Microsoft Entra ID でアプリを登録し、以下の値を入力してください。<br>
+    詳しい手順は <a href="https://github.com/9BwgeBTPG-QH/Dot-connect/blob/main/docs/GRAPH_API_SETUP.md" target="_blank">Graph API セットアップガイド</a> を参照してください。<br>
+    空欄で保存すると、Microsoft 365 タブが非表示になります。
+  </div>
+
+  <form action="/settings" method="post">
+    <div class="card">
+      <div class="section-title">Microsoft Graph API</div>
+      <div class="form-group">
+        <label class="form-label">Client ID（アプリケーション ID）</label>
+        <input type="text" name="client_id" value="{{ client_id }}" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+        <div class="form-hint">Microsoft Entra ID → App registrations → 概要 → アプリケーション (クライアント) ID</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tenant ID（ディレクトリ ID）</label>
+        <input type="text" name="tenant_id" value="{{ tenant_id }}" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+        <div class="form-hint">Microsoft Entra ID → App registrations → 概要 → ディレクトリ (テナント) ID</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Redirect URI</label>
+        <input type="text" name="redirect_uri" value="{{ redirect_uri }}" placeholder="http://localhost:8000/auth/callback">
+        <div class="form-hint">通常は変更不要。Azure 側のリダイレクト URI と一致させてください</div>
+      </div>
+    </div>
+
+    <button type="submit" class="submit-btn">保存する</button>
+  </form>
+</div>
+</body>
+</html>

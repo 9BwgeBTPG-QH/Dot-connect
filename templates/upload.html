@@ -95,7 +95,10 @@
 </head>
 <body>
 <div class="container">
-  <h1>Dot-connect</h1>
+  <div style="display:flex;justify-content:space-between;align-items:baseline;">
+    <h1>Dot-connect</h1>
+    <a href="/settings" style="font-size:13px;color:#8899aa;text-decoration:none;">設定</a>
+  </div>
   <p class="subtitle">Outlook メールネットワーク可視化ツール</p>
 
   {% if error %}
@@ -104,6 +107,9 @@
 
   <div class="tabs">
     <button type="button" class="tab active" onclick="switchTab('outlook')">Outlook から抽出</button>
+    {% if graph_available %}
+    <button type="button" class="tab" onclick="switchTab('graph')">Microsoft 365</button>
+    {% endif %}
     <button type="button" class="tab" onclick="switchTab('csv')">CSV アップロード</button>
   </div>
 
@@ -267,6 +273,93 @@
   </div>
 
   <!-- ============================================================ -->
+  <!-- Microsoft 365 (Graph API) Tab -->
+  <!-- ============================================================ -->
+  {% if graph_available %}
+  <div class="tab-content" id="tab-graph">
+
+    {% if not graph_authenticated %}
+    <!-- 未認証 -->
+    <div class="card" style="text-align:center;padding:40px 20px;">
+      <div style="font-size:36px;margin-bottom:12px;opacity:0.5;">&#128274;</div>
+      <div style="font-size:16px;color:#e0e0e0;margin-bottom:8px;">Microsoft 365 に接続</div>
+      <div style="font-size:13px;color:#8899aa;margin-bottom:24px;">
+        Microsoft アカウントでサインインして<br>メールフォルダにアクセスします
+      </div>
+      <a href="/auth/login" class="submit-btn" style="display:inline-block;text-decoration:none;padding:12px 32px;font-size:15px;">
+        Microsoft アカウントでサインイン
+      </a>
+    </div>
+    {% else %}
+    <!-- 認証済み -->
+    <form action="/graph-extract-and-analyze" method="post">
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div class="section-title" style="margin-bottom:0;">Step 1: フォルダを選択</div>
+          <a href="/auth/logout" style="font-size:12px;color:#ef4444;text-decoration:none;">サインアウト</a>
+        </div>
+        <div style="color:#10b981;font-size:12px;margin-bottom:8px;">Microsoft 365 接続済み</div>
+        <div class="folder-list" id="graph-folder-list">
+          <div style="color:#8899aa;font-size:13px;padding:8px;">フォルダを読み込み中...</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Step 2: 期間を指定</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">開始日</label>
+            <input type="date" name="start_date" id="graph_start_date" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">終了日</label>
+            <input type="date" name="end_date" id="graph_end_date" required>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-toggle" onclick="this.classList.toggle('open');document.getElementById('graph-settings').classList.toggle('open')">
+        <span class="arrow">&#9654;</span><span>詳細設定</span>
+      </div>
+      <div class="settings-panel" id="graph-settings">
+        <div class="card">
+          <div class="form-group">
+            <label class="form-label">社内ドメイン</label>
+            <input type="text" name="company_domains" value="{{ domains }}" placeholder="example.co.jp">
+            <div class="form-hint">カンマ区切りで複数指定可</div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">CC キーマン閾値</label>
+              <input type="number" name="cc_key_person_threshold" value="{{ cc_key_person_threshold }}" step="0.01" min="0" max="1">
+            </div>
+            <div class="form-group">
+              <label class="form-label">最小エッジ重み</label>
+              <input type="number" name="min_edge_weight" value="{{ min_edge_weight }}" step="1" min="1">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Degree 重み</label>
+              <input type="number" name="hub_degree_weight" value="{{ hub_degree_weight }}" step="0.1" min="0" max="1">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Betweenness 重み</label>
+              <input type="number" name="hub_betweenness_weight" value="{{ hub_betweenness_weight }}" step="0.1" min="0" max="1">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button type="submit" class="submit-btn" id="graph-submit">抽出 &amp; 分析する</button>
+    </form>
+    {% endif %}
+
+  </div>
+  {% endif %}
+
+  <!-- ============================================================ -->
   <!-- CSV Tab -->
   <!-- ============================================================ -->
   <div class="tab-content" id="tab-csv">
@@ -346,6 +439,45 @@ document.getElementById('start_date').value = fmt(ago);
 
 // Outlook form: show loading on submit
 document.getElementById('outlook-submit').addEventListener('click', function() {
+  var btn = this;
+  setTimeout(function() {
+    btn.innerHTML = '<span class="spinner"></span>抽出 & 分析中...';
+    btn.disabled = true;
+  }, 50);
+});
+{% endif %}
+
+{% if graph_available and graph_authenticated %}
+// Set dates for Graph form
+document.getElementById('graph_end_date').value = fmt(today);
+document.getElementById('graph_start_date').value = fmt(ago);
+
+// Load Graph folders dynamically
+(function() {
+  var folderList = document.getElementById('graph-folder-list');
+  fetch('/api/graph-folders')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) {
+        folderList.innerHTML = '<div style="color:#fca5a5;font-size:13px;padding:8px;">' + data.error + '</div>';
+        return;
+      }
+      var html = '';
+      (data.folders || []).forEach(function(f) {
+        html += '<label class="folder-item">'
+          + '<input type="checkbox" name="folder_ids" value="' + f.id + '">'
+          + '<span class="folder-path">' + f.path + '</span>'
+          + '</label>';
+      });
+      folderList.innerHTML = html || '<div style="color:#f59e0b;font-size:13px;">フォルダが見つかりません</div>';
+    })
+    .catch(function(err) {
+      folderList.innerHTML = '<div style="color:#fca5a5;font-size:13px;padding:8px;">フォルダの取得に失敗しました</div>';
+    });
+})();
+
+// Graph form: show loading on submit
+document.getElementById('graph-submit').addEventListener('click', function() {
   var btn = this;
   setTimeout(function() {
     btn.innerHTML = '<span class="spinner"></span>抽出 & 分析中...';

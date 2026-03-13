@@ -45,7 +45,18 @@ Run the server on a shared folder — users access via browser, no Python instal
 
 Upload a previously extracted CSV file via the web UI.
 
-### Option D: Docker
+### Option D: Microsoft 365 (Graph API)
+
+For environments where Outlook COM is not available (New Outlook, Outlook on the web, macOS/Linux):
+
+1. Register an app in Microsoft Entra ID — see [Graph API Setup Guide](docs/GRAPH_API_SETUP.md)
+2. Open "Settings" (top-right of the web UI) → enter `Client ID` and `Tenant ID` → save
+3. Return to top page → "Microsoft 365" tab appears
+4. Sign in with your Microsoft account → select folders → extract & analyze
+
+> Requires Exchange Online license and admin consent. See [docs/GRAPH_API_SETUP.md](docs/GRAPH_API_SETUP.md) for detailed setup instructions.
+
+### Option E: Docker
 
 ```bash
 docker compose up
@@ -55,9 +66,10 @@ docker compose up
 ## Developer Setup
 
 ```bash
+cp config.yaml.example config.yaml   # First time only
 pip install -r requirements.txt
-pip install pywin32               # Windows only (Outlook extraction)
-uvicorn app.main:app --reload     # Dev server
+pip install pywin32                   # Windows only (Outlook COM extraction)
+uvicorn app.main:app --reload         # Dev server
 ```
 
 ### CLI Usage
@@ -87,7 +99,8 @@ python generate.py --input sample/emails_sample.csv
 Option A (Local):     start.bat → Browser selects Outlook folders → Visualization
 Option B (Server):    Browser → .bat download → Local extract → Server analysis → Visualization
 Option C (CSV):       start.bat → Browser CSV upload → Visualization
-Option D (CLI):       extract.py → CSV → generate.py → index.html
+Option D (Graph API): Browser → Microsoft sign-in → Select folders → Visualization
+Option E (CLI):       extract.py → CSV → generate.py → index.html
 ```
 
 ## Analysis
@@ -101,26 +114,26 @@ Option D (CLI):       extract.py → CSV → generate.py → index.html
 
 ## Requirements & Limitations
 
-This tool uses **Outlook COM automation (MAPI)** to access your local mailbox directly.
+This tool supports two extraction methods:
 
-**No admin approval needed** — unlike Microsoft Graph API, COM automation requires no Azure AD app registration, no tenant admin consent, and no OAuth2 setup. Just run `start.bat` on your own PC.
-
-| | COM (this tool) | Graph API |
+| | COM (Option A/B) | Graph API (Option D) |
 |--|--|--|
-| Admin approval | **Not required** | Azure AD app + tenant admin consent |
-| Authentication | None (connects to local Outlook) | OAuth2 flow |
+| Admin approval | **Not required** | Microsoft Entra ID app + admin consent |
+| Authentication | None (connects to local Outlook) | OAuth2 (PKCE, no client secret) |
 | Supported Outlook | Classic (desktop) only | New Outlook / Web / Classic |
 | Network | Not required (local processing) | Calls Microsoft 365 API |
-| Scope | Your own mailbox | Configurable per permissions |
+| Scope | Your own mailbox | Your own mailbox |
+| License required | Outlook Classic installed | Exchange Online |
 
-**Supported:** Outlook Classic (desktop version with MAPI)
-**Not supported:** New Outlook (Store app), Outlook on the web
+**COM** is the simplest option — no setup needed, just run `start.bat`. Use this when Outlook Classic is available.
+
+**Graph API** covers environments where COM doesn't work (New Outlook, web, macOS/Linux). Requires one-time Azure setup. See [docs/GRAPH_API_SETUP.md](docs/GRAPH_API_SETUP.md).
 
 > For environments where COM is restricted (e.g., M365 Click-to-Run on servers), use Option B — users extract from their own PC's Outlook Classic and upload to the server.
 
 ## Configuration
 
-See [`config.yaml`](config.yaml) for all settings:
+See [`config.yaml.example`](config.yaml.example) for all settings (copy to `config.yaml` before use):
 
 ```yaml
 network_share_path: "\\\\SERVER\\share\\Dot-connect"
@@ -149,17 +162,21 @@ Dot-connect/
 ├── app/
 │   ├── core.py              # Analysis engine (shared by CLI & Web)
 │   ├── extract.py           # Outlook COM wrapper
+│   ├── graph_auth.py        # Microsoft Graph API OAuth2 (MSAL + PKCE)
+│   ├── graph_extract.py     # Graph API mail extraction
 │   ├── main.py              # FastAPI application
 │   └── models.py            # Pydantic validation models
 ├── templates/
 │   ├── upload.html          # Web UI: upload & extract page
 │   └── network.html         # Visualization (vis.js + wordcloud2.js)
+├── docs/
+│   └── GRAPH_API_SETUP.md   # Graph API setup guide
 ├── sample/
 │   └── emails_sample.csv    # Sample data for testing
 ├── extract.py               # CLI: Outlook → CSV extraction
 ├── generate.py              # CLI: CSV → HTML generation
 ├── extract_and_upload.py    # Self-contained local extractor + uploader
-├── config.yaml              # Configuration
+├── config.yaml.example      # Configuration template
 ├── setup.bat                # One-click setup (downloads Python)
 ├── start.bat                # One-click server start
 ├── Dockerfile               # Docker support

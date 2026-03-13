@@ -68,7 +68,8 @@ netsh advfirewall firewall add rule name="Dot-connect" dir=in action=allow proto
 方法A (ローカル):    start.bat → ブラウザで Outlook フォルダ選択 → 可視化
 方法B (サーバー):    ブラウザ → .bat DL → ローカル実行 → サーバーで分析 → 可視化
 方法C (CSV):        start.bat → ブラウザで CSV アップロード → 可視化
-方法D (CLI):        extract.py → CSV → generate.py → index.html
+方法D (Graph API):  ブラウザ → Microsoft サインイン → フォルダ選択 → 可視化
+方法E (CLI):        extract.py → CSV → generate.py → index.html
 ```
 
 ## ファイル構成
@@ -82,14 +83,18 @@ Dot-connect/
 │   ├── __init__.py          # パッケージ初期化
 │   ├── core.py              # 分析コアロジック（CLI/Web共通）
 │   ├── extract.py           # Outlook COM ラッパー（Web用）
+│   ├── graph_auth.py        # Graph API OAuth2 認証（MSAL + PKCE）
+│   ├── graph_extract.py     # Graph API メール抽出
 │   ├── main.py              # FastAPI アプリ
 │   └── models.py            # Pydantic バリデーションモデル
 ├── templates/
 │   ├── upload.html          # Web UI: トップページ（抽出 / アップロード）
 │   └── network.html         # 可視化テンプレート（vis.js + wordcloud2.js）
+├── docs/
+│   └── GRAPH_API_SETUP.md   # Graph API セットアップガイド
 ├── extract.py               # CLI: Outlook → CSV抽出
 ├── generate.py              # CLI: CSV → HTML生成
-├── config.yaml              # 除外設定・エイリアス・閾値・共有パス
+├── config.yaml.example      # 設定テンプレート（config.yaml にコピーして使用）
 ├── requirements.txt         # 依存パッケージ
 ├── requirements-extract.txt # CLI用 pywin32
 ├── python/                  # 埋め込みPython（setup.batで自動生成）
@@ -101,9 +106,10 @@ Dot-connect/
 既に Python 環境がある場合は `setup.bat` を使わず直接インストールできる。
 
 ```bash
+cp config.yaml.example config.yaml   # 初回のみ
 pip install -r requirements.txt
-pip install pywin32               # Windows でメール抽出する場合
-uvicorn app.main:app --reload     # 開発サーバー起動
+pip install pywin32                   # Windows でメール抽出する場合
+uvicorn app.main:app --reload         # 開発サーバー起動
 ```
 
 ### CLI での使い方
@@ -142,26 +148,47 @@ python generate.py --input output/emails_20250101.csv
 | **ハブ** | degree centrality + betweenness centrality の加重スコア上位 |
 | **コミュニティ** | Louvain 法による自動クラスタ検出 |
 
+### 方法D: Microsoft 365（Graph API）
+
+Outlook COM が使えない環境（New Outlook、Outlook on the web、macOS/Linux）向け:
+
+1. Microsoft Entra ID にアプリ登録 — 詳細は [Graph API セットアップガイド](docs/GRAPH_API_SETUP.md) を参照
+2. Web UI 右上の「設定」→ `Client ID` と `Tenant ID` を入力して保存
+3. トップページに戻る →「Microsoft 365」タブが表示される
+4. Microsoft アカウントでサインイン → フォルダ選択 → 抽出 & 分析
+
+> Exchange Online ライセンスと管理者の同意が必要です。詳細は [docs/GRAPH_API_SETUP.md](docs/GRAPH_API_SETUP.md) を参照してください。
+
+---
+
 ## 動作要件と制約
 
-本ツールは **Outlook COM オートメーション（MAPI）** でローカルのメールボックスに直接アクセスします。
+本ツールは2つの抽出方法をサポートしています:
 
-**管理者の承認は不要です** — Microsoft Graph API と異なり、Azure AD アプリ登録もテナント管理者の同意も OAuth2 認証も必要ありません。自分のPCで `start.bat` を実行するだけで使えます。
-
-| | COM（本ツール） | Graph API |
+| | COM（方法A/B） | Graph API（方法D） |
 |--|--|--|
-| 管理者の承認 | **不要** | Azure AD アプリ登録 + テナント管理者の同意が必要 |
-| 認証 | なし（ローカルOutlookに接続） | OAuth2 フロー |
+| 管理者の承認 | **不要** | Microsoft Entra ID アプリ登録 + 管理者の同意 |
+| 認証 | なし（ローカルOutlookに接続） | OAuth2（PKCE、クライアントシークレット不要） |
 | 対応Outlook | Classic（デスクトップ版）のみ | New Outlook / Web / Classic |
 | ネットワーク | 不要（ローカル処理） | Microsoft 365 API呼び出し |
-| 取得範囲 | 自分のメールボックス | 権限設定次第 |
+| 取得範囲 | 自分のメールボックス | 自分のメールボックス |
+| 必要なライセンス | Outlook Classic がインストール済み | Exchange Online |
 
-**対応:** Outlook Classic（MAPI対応のデスクトップ版）
-**非対応:** New Outlook（ストアアプリ版）、Outlook on the web
+**COM** が最もシンプル — セットアップ不要、`start.bat` を実行するだけ。Outlook Classic がある環境ではこちらを推奨。
+
+**Graph API** は COM が使えない環境をカバー（New Outlook、Web、macOS/Linux）。初回のみ Azure セットアップが必要。詳細は [docs/GRAPH_API_SETUP.md](docs/GRAPH_API_SETUP.md) を参照。
 
 > M365 C2R 環境などサーバー上で COM が制限される場合は、方法Bを使用してください。各ユーザーのPCの Outlook Classic からメールを抽出し、サーバーにアップロードします。
 
 ## config.yaml 設定
+
+初回は `config.yaml.example` をコピーして `config.yaml` を作成してください:
+
+```bash
+cp config.yaml.example config.yaml
+```
+
+> `config.yaml` は `.gitignore` に含まれており、Git にコミットされません。
 
 ```yaml
 # ネットワーク共有パス（ファイルサーバー運用時に設定）

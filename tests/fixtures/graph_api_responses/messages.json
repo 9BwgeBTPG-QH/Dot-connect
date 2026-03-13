@@ -1,0 +1,81 @@
+{
+  "value": [
+    {
+      "receivedDateTime": "2024-06-15T09:30:00Z",
+      "subject": "プロジェクト進捗報告",
+      "from": {
+        "emailAddress": {
+          "name": "山田太郎",
+          "address": "taro.yamada@example.co.jp"
+        }
+      },
+      "toRecipients": [
+        {
+          "emailAddress": {
+            "name": "鈴木花子",
+            "address": "hanako.suzuki@example.co.jp"
+          }
+        },
+        {
+          "emailAddress": {
+            "name": "佐藤一郎",
+            "address": "ichiro.sato@example.co.jp"
+          }
+        }
+      ],
+      "ccRecipients": [
+        {
+          "emailAddress": {
+            "name": "田中次郎",
+            "address": "jiro.tanaka@example.co.jp"
+          }
+        }
+      ]
+    },
+    {
+      "receivedDateTime": "2024-06-14T14:00:00Z",
+      "subject": "Re: 会議資料",
+      "from": {
+        "emailAddress": {
+          "name": "鈴木花子",
+          "address": "hanako.suzuki@example.co.jp"
+        }
+      },
+      "toRecipients": [
+        {
+          "emailAddress": {
+            "name": "山田太郎",
+            "address": "taro.yamada@example.co.jp"
+          }
+        }
+      ],
+      "ccRecipients": []
+    },
+    {
+      "receivedDateTime": "2024-06-13T11:15:00Z",
+      "subject": "外部ミーティング案内",
+      "from": {
+        "emailAddress": {
+          "name": "External Partner",
+          "address": "partner@external.com"
+        }
+      },
+      "toRecipients": [
+        {
+          "emailAddress": {
+            "name": "山田太郎",
+            "address": "taro.yamada@example.co.jp"
+          }
+        }
+      ],
+      "ccRecipients": [
+        {
+          "emailAddress": {
+            "name": "鈴木花子",
+            "address": "hanako.suzuki@example.co.jp"
+          }
+        }
+      ]
+    }
+  ]
+}

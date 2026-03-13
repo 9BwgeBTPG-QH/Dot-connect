@@ -1,0 +1,20 @@
+{
+  "value": [
+    {
+      "id": "AAMkAGI2AAEVAAA=",
+      "displayName": "受信トレイ",
+      "parentFolderId": "AAMkAGI2AAEIAAA=",
+      "childFolderCount": 1,
+      "unreadItemCount": 5,
+      "totalItemCount": 42
+    },
+    {
+      "id": "AAMkAGI2AAEMAAA=",
+      "displayName": "送信済みアイテム",
+      "parentFolderId": "AAMkAGI2AAEIAAA=",
+      "childFolderCount": 0,
+      "unreadItemCount": 0,
+      "totalItemCount": 100
+    }
+  ]
+}
