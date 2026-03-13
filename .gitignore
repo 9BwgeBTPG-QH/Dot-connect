@@ -9,6 +9,8 @@ server.log
 test_outlook.py
 zenn-article-rewrite.md
 zenn-article.md
+docs/DESIGN_SPEC.md
+Outlook_メールネットワーク可視化構想の分析.md
 
 # Internal/editor files
 .claude/
