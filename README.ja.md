@@ -142,6 +142,25 @@ python generate.py --input output/emails_20250101.csv
 | **ハブ** | degree centrality + betweenness centrality の加重スコア上位 |
 | **コミュニティ** | Louvain 法による自動クラスタ検出 |
 
+## 動作要件と制約
+
+本ツールは **Outlook COM オートメーション（MAPI）** でローカルのメールボックスに直接アクセスします。
+
+**管理者の承認は不要です** — Microsoft Graph API と異なり、Azure AD アプリ登録もテナント管理者の同意も OAuth2 認証も必要ありません。自分のPCで `start.bat` を実行するだけで使えます。
+
+| | COM（本ツール） | Graph API |
+|--|--|--|
+| 管理者の承認 | **不要** | Azure AD アプリ登録 + テナント管理者の同意が必要 |
+| 認証 | なし（ローカルOutlookに接続） | OAuth2 フロー |
+| 対応Outlook | Classic（デスクトップ版）のみ | New Outlook / Web / Classic |
+| ネットワーク | 不要（ローカル処理） | Microsoft 365 API呼び出し |
+| 取得範囲 | 自分のメールボックス | 権限設定次第 |
+
+**対応:** Outlook Classic（MAPI対応のデスクトップ版）
+**非対応:** New Outlook（ストアアプリ版）、Outlook on the web
+
+> M365 C2R 環境などサーバー上で COM が制限される場合は、方法Bを使用してください。各ユーザーのPCの Outlook Classic からメールを抽出し、サーバーにアップロードします。
+
 ## config.yaml 設定
 
 ```yaml

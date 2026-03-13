@@ -99,6 +99,25 @@ Option D (CLI):       extract.py → CSV → generate.py → index.html
 | **Community** | Automatic cluster detection via Louvain algorithm |
 | **Passive Observer** | Receive-only or CC-only participants (never send) |
 
+## Requirements & Limitations
+
+This tool uses **Outlook COM automation (MAPI)** to access your local mailbox directly.
+
+**No admin approval needed** — unlike Microsoft Graph API, COM automation requires no Azure AD app registration, no tenant admin consent, and no OAuth2 setup. Just run `start.bat` on your own PC.
+
+| | COM (this tool) | Graph API |
+|--|--|--|
+| Admin approval | **Not required** | Azure AD app + tenant admin consent |
+| Authentication | None (connects to local Outlook) | OAuth2 flow |
+| Supported Outlook | Classic (desktop) only | New Outlook / Web / Classic |
+| Network | Not required (local processing) | Calls Microsoft 365 API |
+| Scope | Your own mailbox | Configurable per permissions |
+
+**Supported:** Outlook Classic (desktop version with MAPI)
+**Not supported:** New Outlook (Store app), Outlook on the web
+
+> For environments where COM is restricted (e.g., M365 Click-to-Run on servers), use Option B — users extract from their own PC's Outlook Classic and upload to the server.
+
 ## Configuration
 
 See [`config.yaml`](config.yaml) for all settings:
