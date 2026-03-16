@@ -542,6 +542,10 @@ echo.
 
 set "SERVER_URL={server_url}"
 set "TEMP_SCRIPT=%TEMP%\\extract_and_upload.py"
+set "LOCAL_PYTHON_DIR=%TEMP%\\dotconnect_python"
+set "PYTHON_VER=3.12.8"
+set "PYTHON_ZIP=python-%PYTHON_VER%-embed-amd64.zip"
+set "PYTHON_URL=https://www.python.org/ftp/python/%PYTHON_VER%/%PYTHON_ZIP%"
 
 REM --- Find Python ---
 set "PYTHON_CMD="
@@ -550,25 +554,80 @@ REM 1) Check network share embedded Python
 if exist "{share_path}\\python\\python.exe" (
     set "PYTHON_CMD={share_path}\\python\\python.exe"
     echo [OK] Python found: network share
-    goto :download_script
+    goto :check_pywin32
 )
 
-REM 2) Check python in PATH
+REM 2) Check previously downloaded local Python
+if exist "%LOCAL_PYTHON_DIR%\\python.exe" (
+    set "PYTHON_CMD=%LOCAL_PYTHON_DIR%\\python.exe"
+    echo [OK] Python found: local cache
+    goto :check_pywin32
+)
+
+REM 3) Check python in PATH (verify it's real, not Windows Store stub)
 where python >nul 2>&1
 if %errorlevel%==0 (
-    set "PYTHON_CMD=python"
-    echo [OK] Python found: PATH
-    goto :download_script
+    python -c "import sys" >nul 2>&1
+    if !errorlevel!==0 (
+        set "PYTHON_CMD=python"
+        echo [OK] Python found: PATH
+        goto :check_pywin32
+    )
 )
 
-echo [ERROR] Python not found.
+REM 4) Try py launcher
+where py >nul 2>&1
+if %errorlevel%==0 (
+    py -c "import sys" >nul 2>&1
+    if !errorlevel!==0 (
+        set "PYTHON_CMD=py"
+        echo [OK] Python found: py launcher
+        goto :check_pywin32
+    )
+)
+
+REM 5) Auto-download embedded Python
+echo [SETUP] Python not found. Downloading portable Python %PYTHON_VER%...
+echo   (This is a one-time setup, please wait...)
 echo.
-echo   Please do one of the following:
-echo   1. Install Python and add to PATH
-echo   2. Check network share path: {share_path}
-echo.
-pause
-exit /b 1
+
+if not exist "%LOCAL_PYTHON_DIR%" mkdir "%LOCAL_PYTHON_DIR%"
+
+powershell -Command "Invoke-WebRequest -Uri '%PYTHON_URL%' -OutFile '%TEMP%\\%PYTHON_ZIP%'" 2>nul
+if not exist "%TEMP%\\%PYTHON_ZIP%" (
+    echo [ERROR] Python download failed. Check internet connection.
+    pause
+    exit /b 1
+)
+
+echo   Extracting...
+powershell -Command "Expand-Archive -Path '%TEMP%\\%PYTHON_ZIP%' -DestinationPath '%LOCAL_PYTHON_DIR%' -Force"
+del "%TEMP%\\%PYTHON_ZIP%" >nul 2>&1
+
+REM Enable pip in embedded Python
+echo import site>> "%LOCAL_PYTHON_DIR%\\python312._pth"
+echo   Installing pip...
+powershell -Command "Invoke-WebRequest -Uri 'https://bootstrap.pypa.io/get-pip.py' -OutFile '%LOCAL_PYTHON_DIR%\\get-pip.py'" 2>nul
+"%LOCAL_PYTHON_DIR%\\python.exe" "%LOCAL_PYTHON_DIR%\\get-pip.py" --no-warn-script-location -q
+del "%LOCAL_PYTHON_DIR%\\get-pip.py" >nul 2>&1
+
+set "PYTHON_CMD=%LOCAL_PYTHON_DIR%\\python.exe"
+echo [OK] Python %PYTHON_VER% installed to %LOCAL_PYTHON_DIR%
+
+:check_pywin32
+REM --- Check pywin32 dependency ---
+"%PYTHON_CMD%" -c "import win32com.client" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [SETUP] Installing pywin32...
+    "%PYTHON_CMD%" -m pip install pywin32 --no-warn-script-location -q
+    "%PYTHON_CMD%" -c "import win32com.client" >nul 2>&1
+    if %errorlevel% neq 0 (
+        echo [ERROR] pywin32 installation failed.
+        pause
+        exit /b 1
+    )
+    echo [OK] pywin32 installed.
+)
 
 :download_script
 echo [1/3] Downloading script...
@@ -593,6 +652,14 @@ echo.
     --min_edge_weight {min_edge_weight} ^
     --hub_degree_weight {hub_degree_weight} ^
     --hub_betweenness_weight {hub_betweenness_weight}
+
+if %errorlevel% neq 0 (
+    echo.
+    echo [ERROR] Email extraction failed.
+    echo   Check that Outlook is running and accessible.
+    pause
+    exit /b 1
+)
 
 echo.
 echo [3/3] Done.
