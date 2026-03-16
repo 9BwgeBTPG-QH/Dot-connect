@@ -16,7 +16,7 @@ Visualize Outlook email send/receive/CC relationships as an interactive network 
 - **Passive Observer** — Detects receive-only and CC-only participants
 - **Word Cloud** — Name-based word cloud sized by email frequency
 - **Export** — PNG screenshot, standalone HTML, CSV analysis results
-- **Zero-install for end users** — Embedded Python via network share (no local install needed)
+- **Zero-install for end users** — Auto-downloads portable Python if needed (no local install required)
 
 ## Quick Start
 
@@ -40,6 +40,8 @@ Run the server on a shared folder — users access via browser, no Python instal
 1. Open `http://<server>:8000` in browser
 2. Download the `.bat` extractor, run it locally
 3. Select Outlook folders → auto-extract & upload → results appear in browser
+
+> The `.bat` searches for Python in this order: network share → PATH → py launcher. If none is found, it automatically downloads portable Python to `%TEMP%` and installs pywin32. No pre-setup required on user PCs.
 
 ### Option C: CSV Upload
 
