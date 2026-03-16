@@ -14,6 +14,7 @@ Visualize Outlook email send/receive/CC relationships as an interactive network 
 - **CC Key Person** — Identifies people who appear in CC above a configurable threshold
 - **Hub Detection** — Weighted degree + betweenness centrality scoring
 - **Passive Observer** — Detects receive-only and CC-only participants
+- **Subfolder Selection** — Batch-select child folders with one click (Web UI) or `+` suffix (CLI)
 - **Word Cloud** — Name-based word cloud sized by email frequency
 - **Export** — PNG screenshot, standalone HTML, CSV analysis results
 - **Zero-install for end users** — Auto-downloads portable Python if needed (no local install required)
@@ -24,7 +25,7 @@ Visualize Outlook email send/receive/CC relationships as an interactive network 
 
 1. Double-click `setup.bat` (first time only — installs Python + dependencies)
 2. Double-click `start.bat` → browser opens automatically
-3. Select Outlook folders, set date range, click "Extract & Analyze"
+3. Select Outlook folders (use `+Subfolders` button to include child folders), set date range, click "Extract & Analyze"
 
 ### Option B: File Server (multi-user)
 
@@ -39,7 +40,7 @@ Run the server on a shared folder — users access via browser, no Python instal
 **Each user:**
 1. Open `http://<server>:8000` in browser
 2. Download the `.bat` extractor, run it locally
-3. Select Outlook folders → auto-extract & upload → results appear in browser
+3. Select Outlook folders (append `+` to include subfolders, e.g., `3+`) → auto-extract & upload → results appear in browser
 
 > The `.bat` searches for Python in this order: network share → PATH → py launcher. If none is found, it automatically downloads portable Python to `%TEMP%` and installs pywin32. No pre-setup required on user PCs.
 

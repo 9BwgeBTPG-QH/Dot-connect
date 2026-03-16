@@ -46,6 +46,11 @@
   .folder-item:hover { background: #1a1a3e; }
   .folder-item input[type="checkbox"] { accent-color: #6366f1; width: 16px; height: 16px; flex-shrink: 0; }
   .folder-path { word-break: break-all; }
+  .subfolder-toggle {
+    font-size: 11px; color: #6366f1; cursor: pointer; white-space: nowrap;
+    margin-left: auto; padding: 2px 6px; border-radius: 3px; flex-shrink: 0;
+  }
+  .subfolder-toggle:hover { background: #6366f122; }
   .drop-zone {
     border: 2px dashed #334; border-radius: 10px; padding: 44px 24px;
     text-align: center; cursor: pointer;
@@ -437,6 +442,38 @@ document.getElementById('local_start_date').value = fmt(ago);
 document.getElementById('end_date').value = fmt(today);
 document.getElementById('start_date').value = fmt(ago);
 
+// Add "+子フォルダ" toggle buttons to folders that have children
+(function() {
+  var items = document.querySelectorAll('#tab-outlook .folder-item');
+  var paths = [];
+  items.forEach(function(item) {
+    paths.push(item.querySelector('input[type="checkbox"]').value);
+  });
+  items.forEach(function(item) {
+    var myPath = item.querySelector('input[type="checkbox"]').value;
+    var prefix = myPath + '/';
+    var hasChildren = paths.some(function(p) { return p.indexOf(prefix) === 0; });
+    if (hasChildren) {
+      var btn = document.createElement('span');
+      btn.className = 'subfolder-toggle';
+      btn.textContent = '+子フォルダ';
+      btn.title = '子フォルダをまとめて選択/解除';
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var childBoxes = [];
+        items.forEach(function(other) {
+          var otherPath = other.querySelector('input[type="checkbox"]').value;
+          if (otherPath.indexOf(prefix) === 0) childBoxes.push(other.querySelector('input[type="checkbox"]'));
+        });
+        var allChecked = childBoxes.every(function(cb) { return cb.checked; });
+        childBoxes.forEach(function(cb) { cb.checked = !allChecked; });
+      });
+      item.appendChild(btn);
+    }
+  });
+})();
+
 // Outlook form: show loading on submit
 document.getElementById('outlook-submit').addEventListener('click', function() {
   var btn = this;
@@ -462,14 +499,41 @@ document.getElementById('graph_start_date').value = fmt(ago);
         folderList.innerHTML = '<div style="color:#fca5a5;font-size:13px;padding:8px;">' + data.error + '</div>';
         return;
       }
+      var folders = data.folders || [];
       var html = '';
-      (data.folders || []).forEach(function(f) {
-        html += '<label class="folder-item">'
+      folders.forEach(function(f) {
+        html += '<label class="folder-item" data-path="' + f.path.replace(/"/g, '&quot;') + '">'
           + '<input type="checkbox" name="folder_ids" value="' + f.id + '">'
           + '<span class="folder-path">' + f.path + '</span>'
           + '</label>';
       });
       folderList.innerHTML = html || '<div style="color:#f59e0b;font-size:13px;">フォルダが見つかりません</div>';
+
+      // Add "+子フォルダ" toggles
+      var gItems = folderList.querySelectorAll('.folder-item');
+      var gPaths = folders.map(function(f) { return f.path; });
+      gItems.forEach(function(item, idx) {
+        var myPath = gPaths[idx];
+        var prefix = myPath + '/';
+        var hasChildren = gPaths.some(function(p) { return p.indexOf(prefix) === 0; });
+        if (hasChildren) {
+          var btn = document.createElement('span');
+          btn.className = 'subfolder-toggle';
+          btn.textContent = '+子フォルダ';
+          btn.title = '子フォルダをまとめて選択/解除';
+          btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var childBoxes = [];
+            gItems.forEach(function(other, oidx) {
+              if (gPaths[oidx].indexOf(prefix) === 0) childBoxes.push(other.querySelector('input[type="checkbox"]'));
+            });
+            var allChecked = childBoxes.every(function(cb) { return cb.checked; });
+            childBoxes.forEach(function(cb) { cb.checked = !allChecked; });
+          });
+          item.appendChild(btn);
+        }
+      });
     })
     .catch(function(err) {
       folderList.innerHTML = '<div style="color:#fca5a5;font-size:13px;padding:8px;">フォルダの取得に失敗しました</div>';

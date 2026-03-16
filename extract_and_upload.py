@@ -69,23 +69,54 @@ def choose_folder(namespace):
         print("[ERROR] メールフォルダが見つかりません。")
         sys.exit(1)
 
+    # 子フォルダを持つフォルダに (+) マークを表示
+    paths = [path for path, _ in all_folders]
+    has_children = set()
+    for i, p in enumerate(paths):
+        prefix = p + "/"
+        if any(other.startswith(prefix) for other in paths):
+            has_children.add(i)
+
     print("\n--- メールフォルダ一覧 ---")
     for idx, (path, _) in enumerate(all_folders, 1):
-        print(f"  {idx:3d}: {path}")
+        marker = " (+)" if (idx - 1) in has_children else ""
+        print(f"  {idx:3d}: {path}{marker}")
+    print()
+    print("  (+) = 子フォルダあり。番号の後に + を付けると子フォルダも含む")
+    print("  例: 3+  → フォルダ3とその子フォルダすべて")
+    print("  例: 1,3+,7  → フォルダ1と、3+子フォルダと、7")
     print()
 
     while True:
-        raw = input("フォルダ番号を入力 (カンマ区切りで複数可, 例: 1,3,5): ").strip()
+        raw = input("フォルダ番号を入力: ").strip()
         if not raw:
             continue
         try:
-            indices = [int(x.strip()) for x in raw.split(",")]
             selected = []
-            for idx in indices:
-                if 1 <= idx <= len(all_folders):
-                    selected.append(all_folders[idx - 1])
-                else:
+            seen = set()
+            for token in raw.split(","):
+                token = token.strip()
+                if not token:
+                    continue
+                include_children = token.endswith("+")
+                if include_children:
+                    token = token[:-1]
+                idx = int(token)
+                if not (1 <= idx <= len(all_folders)):
                     print(f"  番号 {idx} は範囲外です。")
+                    continue
+                # Add the folder itself
+                if idx not in seen:
+                    selected.append(all_folders[idx - 1])
+                    seen.add(idx)
+                # Add child folders if requested
+                if include_children:
+                    parent_path = all_folders[idx - 1][0]
+                    prefix = parent_path + "/"
+                    for ci, (cp, cf) in enumerate(all_folders, 1):
+                        if cp.startswith(prefix) and ci not in seen:
+                            selected.append((cp, cf))
+                            seen.add(ci)
             if selected:
                 for path, _ in selected:
                     print(f"  -> {path}")
